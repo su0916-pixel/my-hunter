@@ -45,7 +45,7 @@ def get_data():
         for sym, p in [("BTC",95000.0),("ETH",3300.0),("SOL",210.0),("XRP",1.45),("DOGE",0.38),("SUI",3.5),("PEPE",0.00002),("WIF",3.1),("AVAX",42.0),("LINK",18.5)]:
             rows.append({"sym":sym,"price":p,"c1h":0.5,"c24h":2.1,"turn":22.0,"logo":f"{lp}{sym.lower()}@2x.png","oi_act":"🟢 主力強勢開多 (資金湧入)","oi_dir":"LONG","cycs":28.5,"res":"🔥 雙指標【共振做多】買點","s_sc":65,"s_msg":"高位觀察","l_sc":82,"l_msg":"主力開多 + 賽克斯共振"})
     return rows
-    data = get_data()
+data = get_data()
 shorts = sorted([x for x in data if x["s_sc"] >= x["l_sc"]], key=lambda x: x["s_sc"], reverse=True)[:5]
 longs = sorted([x for x in data if x["l_sc"] > x["s_sc"]], key=lambda x: x["l_sc"], reverse=True)[:5]
 anom = sorted([x for x in data if x["oi_dir"] != "NEUTRAL"], key=lambda x: x["turn"], reverse=True)[:8]

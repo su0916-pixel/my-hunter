@@ -21,55 +21,32 @@ header[data-testid="stHeader"] { background: transparent; }
 
 st.markdown('<div class="cyber-title">⚡ CYBER HUNTER AI · 量化戰情終端</div>', unsafe_allow_html=True)
 
-@st.cache_data(ttl=40)
+@st.cache_data(ttl=35)
 def get_market():
     rows = []
     skip = {"USDT", "USDC", "FDUSD", "DAI", "TUSD", "USDE", "PYUSD", "BUSD", "USDS", "WBTC", "WETH"}
     headers = {"User-Agent": "Mozilla/5.0"}
 
-    # 主通道：CoinGecko
+    # 防手機自動截短網域保護組裝
+    d1 = "".join(["ht", "tps://", "api.", "coin", "paprika", ".", "com", "/v1/tickers?limit=70"])
     try:
-        u1 = "https://api." + "://coingecko.com"
-        r = requests.get(u1, headers=headers, timeout=8)
+        r = requests.get(d1, headers=headers, timeout=10)
         if r.status_code == 200:
             for c in r.json():
                 sym = c.get("symbol", "").upper()
-                p = float(c.get("current_price") or 0)
+                q = c.get("quotes", {}).get("USD", {})
+                p = float(q.get("price") or 0)
                 if not sym or sym in skip or p <= 0:
                     continue
-                c1h = float(c.get("price_change_percentage_1h_in_currency") or 0)
-                c24h = float(c.get("price_change_percentage_24h_in_currency") or 0)
-                vol = float(c.get("total_volume") or 0)
-                mc = float(c.get("market_cap") or 1)
-                hi = float(c.get("high_24h") or p)
-                lo = float(c.get("low_24h") or p)
+                c1h = float(q.get("percent_change_1h") or 0)
+                c24h = float(q.get("percent_change_24h") or 0)
+                vol = float(q.get("volume_24h") or 0)
+                mc = float(q.get("market_cap") or 1)
                 turn = (vol / mc) * 100 if mc > 0 else 0
-                pos = ((p - lo) / (hi - lo) * 100) if hi > lo else 50.0
+                pos = min(max(50.0 + c24h * 2.5, 5.0), 95.0)
                 rows.append((sym, p, c1h, c24h, pos, turn))
     except Exception:
         pass
-
-    # 備援通道：CoinPaprika（若主通道限速自動無縫切換，保證永不斷線）
-    if not rows:
-        try:
-            u2 = "https://api." + "://coinpaprika.com"
-            r2 = requests.get(u2, headers=headers, timeout=8)
-            if r2.status_code == 200:
-                for c in r2.json():
-                    sym = c.get("symbol", "").upper()
-                    q = c.get("quotes", {}).get("USD", {})
-                    p = float(q.get("price") or 0)
-                    if not sym or sym in skip or p <= 0:
-                        continue
-                    c1h = float(q.get("percent_change_1h") or 0)
-                    c24h = float(q.get("percent_change_24h") or 0)
-                    vol = float(q.get("volume_24h") or 0)
-                    mc = float(q.get("market_cap") or 1)
-                    turn = (vol / mc) * 100 if mc > 0 else 0
-                    pos = min(max(50.0 + c24h * 2.5, 5.0), 95.0)
-                    rows.append((sym, p, c1h, c24h, pos, turn))
-        except Exception:
-            pass
 
     final_data = []
     for sym, p, c1h, c24h, pos, turn in rows:
@@ -114,7 +91,7 @@ if not data:
     st.error("行情連線中，請稍候自動刷新...")
 else:
     df = pd.DataFrame(data)
-    st.caption(f"🟢 雙引擎實時連線中 · 更新：`{datetime.now().strftime('%H:%M:%S')}`（每 {sec} 秒自動跳動）")
+    st.caption(f"🟢 實時連線中 · 更新：`{datetime.now().strftime('%H:%M:%S')}`（每 {sec} 秒自動跳動）")
 
     st.markdown("### 🔥 熱門主流幣種（一幣一框）")
     hots = ["BTC", "ETH", "SOL", "XRP", "DOGE", "SUI"]

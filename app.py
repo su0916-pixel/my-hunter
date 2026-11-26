@@ -198,26 +198,47 @@ function renderBoards(){{
   lh+=`<div class="itl"><a href="${{D.app}}${{c.sym.toLowerCase()}}-usdt-swap" target="_blank" class="okx-btn">⚡ OKX開單</a><b>#${{i+1}}</b> <img src="${{c.logo}}" class="lg" onerror="this.style.display='none'"><b>${{c.sym}}/USDT</b>｜<span style="color:#00f59b;font-weight:bold">勝率${{c.l_sc}}分</span><div style="margin:4px 0">現價:<span class="pv p-${{c.sym}}">${{fmt(lv.p)}}</span> (${{lv.c24>=0?'+':''}}${{lv.c24.toFixed(2)}}%)</div><small>🎯止盈:<b class="tp-${{c.sym}}">${{fmt(lv.p*1.04)}}</b>｜🛡️停損:<b class="sl-${{c.sym}}">${{fmt(lv.p*0.98)}}</b><br>🔍${{c.l_msg}}</small></div>`;}});
   document.getElementById('lc').innerHTML=lh;
 }}
-
 async function syncOKXReal(){{
   try{{
     const r=await fetch(D.rest),j=await r.json();
     if(!j.data)return;
-    let up=0,tot=0,sumPct=0;
+    let up=0,tot=0,sumPct=0,okxList=[];
+    const lp="https://assets."+"coincap.io/assets/icons/";
     j.data.forEach(d=>{{
       if(!d.instId.endsWith('-USDT-SWAP'))return;
-      const s=d.instId.replace('-USDT-SWAP',''),last=parseFloat(d.last),op24=parseFloat(d.open24h);
+      const s=d.instId.replace('-USDT-SWAP',''),last=parseFloat(d.last),op24=parseFloat(d.open24h),hi=parseFloat(d.high24h)||last,lo=parseFloat(d.low24h)||last,vol=parseFloat(d.volCcy24h)*last;
       const c24=op24>0?((last-op24)/op24)*100:0;
+      const pos=hi>lo?((last-lo)/(hi-lo))*100:50;
       okxMap[s]={{p:last,c24:c24}};
       if(!SPARK[s])SPARK[s]=[op24,op24+(last-op24)*0.3,op24+(last-op24)*0.6,op24+(last-op24)*0.4,op24+(last-op24)*0.8,last];
       if(tot<80){{tot++;if(c24>0)up++;sumPct+=c24;}}
+      let s_sc=40,l_sc=40,sm=[],lm=[],oi_act="⚪ 資金溫和換手",oi_dir="NEUTRAL";
+      if(c24>6&&vol>5000000){{oi_act="🟢 主力強勢開多 (資金湧入)";oi_dir="LONG";l_sc+=20;lm.push("主力開多");}}
+      else if(c24<-6&&vol>5000000){{oi_act="🔴 主力放量開空 (空單增倉)";oi_dir="SHORT";s_sc+=20;sm.push("主力開空");}}
+      if(pos>=88){{s_sc+=22;sm.push(`逼近高點(${{pos.toFixed(0)}}%)`);}}
+      if(pos<=12){{l_sc+=22;lm.push(`逼近低點(${{pos.toFixed(0)}}%)`);}}
+      if(c24>=12){{s_sc+=18;sm.push(`暴漲+${{c24.toFixed(1)}}%`);}}
+      if(c24<=-12){{l_sc+=18;lm.push(`深跌${{c24.toFixed(1)}}%`);}}
+      const cycs=Math.round(Math.max(Math.min((c24*2.5)+((50-pos)*0.6),99),-99)*10)/10;
+      const res=(oi_dir==="LONG"&&cycs>=20)?"🔥 雙指標【共振做多】買點":((oi_dir==="SHORT"&&cycs<=-20)?"🔥 雙指標【共振做空】賣點":"");
+      if(res.includes("多"))l_sc+=15;if(res.includes("空"))s_sc+=15;
+      okxList.push({{sym:s,price:last,c24h:c24,turn:Math.round(vol/1000000),logo:`${{lp}}${{s.toLowerCase()}}@2x.png`,oi_act:oi_act,oi_dir:oi_dir,cycs:cycs,res:res,s_sc:Math.min(s_sc,99),s_msg:sm.join(" + ")||"動能中性",l_sc:Math.min(l_sc,99),l_msg:lm.join(" + ")||"動能中性",vol:vol}});
     }});
-    const bp=tot>0?Math.round((up/tot)*100):50;
-    const avgP=tot>0?(sumPct/tot):0;
+    if(D.all.length===0){{
+      D.all=okxList;
+      const ho=["BTC","ETH","SOL","XRP","DOGE","SUI"];
+      D.hots=ho.map(k=>okxList.find(x=>x.sym===k)).filter(Boolean);
+      const topVol=[...okxList].sort((a,b)=>b.vol-a.vol).slice(0,50);
+      D.shorts=topVol.filter(x=>x.s_sc>=x.l_sc).sort((a,b)=>b.s_sc-a.s_sc).slice(0,5);
+      D.longs=topVol.filter(x=>x.l_sc>x.s_sc).sort((a,b)=>b.l_sc-a.l_sc).slice(0,5);
+      D.anom=topVol.filter(x=>x.oi_dir!=="NEUTRAL").slice(0,8);
+      D.res=topVol.filter(x=>x.res!=="").slice(0,8);
+      D.syms=[...new Set([...ho,...D.shorts.map(x=>x.sym),...D.longs.map(x=>x.sym)])];
+    }}
+    const bp=tot>0?Math.round((up/tot)*100):50,avgP=tot>0?(sumPct/tot):0;
     const rsi=Math.min(Math.max(50+avgP*3+(bp-50)*0.4,5),95).toFixed(1);
     const fng=Math.min(Math.max(Math.round(bp*0.6+parseFloat(rsi)*0.4),4),98);
-    document.getElementById('m-rsi').innerText=rsi;
-    document.getElementById('m-pin').style.left=rsi+'%';
+    document.getElementById('m-rsi').innerText=rsi;document.getElementById('m-pin').style.left=rsi+'%';
     document.getElementById('m-fng').innerHTML=`😱 恐懼貪婪：<b>${{fng}}</b> ｜ 漲跌比：<b>${{bp}}%</b>/${{100-bp}}%`;
     const md=document.getElementById('m-dir');
     if(rsi>=58&&bp>=55){{md.innerText='🟢 OKX 真實市場：強勢看多 (BULLISH)';md.style.color='#00f59b';}}
@@ -244,3 +265,4 @@ function connWS(){{
 syncOKXReal().then(()=>{{connWS();setInterval(()=>{{fetch(D.rest).then(r=>r.json()).then(j=>{{if(j.data)j.data.forEach(d=>updateTick(d.instId.replace('-USDT-SWAP',''),parseFloat(d.last)));}}).catch(()=>{{}});}},1000);}});
 </script></body></html>"""
 components.html(html, height=2200, scrolling=True)
+

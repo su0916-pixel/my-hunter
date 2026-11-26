@@ -3,20 +3,9 @@ import streamlit.components.v1 as components
 import requests, json
 
 st.set_page_config(page_title="CYBER HUNTER AI", page_icon="⚡", layout="wide")
-st.markdown("<style>.stApp{background:#070a10;color:#e2e8f0;}header[data-testid='stHeader']{background:transparent;}.block-container{padding-top:1rem;}</style>", unsafe_allow_html=True)
+st.markdown("<style>.stApp{background:#070a10;color:#e2e8f0;}header[data-testid='stHeader'],section[data-testid='stSidebar']{display:none!important;}.block-container{padding-top:0.8rem;padding-left:0.6rem;padding-right:0.6rem;}</style>", unsafe_allow_html=True)
 
-with st.sidebar:
-    st.header("🧭 戰情室分頁導航")
-    page = st.radio("選擇要查看的看板：", ["🔥 熱門幣種", "🟢 做多排行", "🔴 做空排行", "🌐 全部總覽"])
-    st.divider()
-    st.header("⚙️ 停損止盈設定")
-    sl_p = st.slider("停損 (%)", 1.0, 5.0, 2.0, 0.5)
-    tp_p = st.slider("止盈 (%)", 2.0, 15.0, 4.0, 0.5)
-    if st.button("🔄 重新掃描 AI"):
-        st.cache_data.clear()
-        st.rerun()
-
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=50)
 def get_data():
     rows, skip = [], {"USDT","USDC","FDUSD","DAI","TUSD","USDE","PYUSD","BUSD","USDS","WBTC","WETH"}
     d1 = "".join(["ht","tps://","api.","coin","paprika",".","com","/v1/tickers?limit=75"])
@@ -32,75 +21,120 @@ def get_data():
                 c1h, c24h = float(q.get("percent_change_1h") or 0), float(q.get("percent_change_24h") or 0)
                 turn = (float(q.get("volume_24h") or 0) / float(q.get("market_cap") or 1)) * 100
                 pos = min(max(50.0 + c24h * 2.5, 5.0), 95.0)
+
+                # 1. 數據異常：未平倉量與資金流向判別（主力開倉 vs 撤資）
+                if c1h > 0.6 and turn >= 18:
+                    oi_act, oi_dir = "🟢 主力強勢開多 (資金湧入)", "LONG"
+                elif c1h < -0.6 and turn >= 18:
+                    oi_act, oi_dir = "🔴 主力放量開空 (空單增倉)", "SHORT"
+                elif c1h < -0.5 and c24h > 5:
+                    oi_act, oi_dir = "🟡 多頭獲利撤資 (平多減倉)", "SHORT"
+                elif c1h > 0.5 and c24h < -5:
+                    oi_act, oi_dir = "🟣 空頭回補撤資 (平空減倉)", "LONG"
+                else:
+                    oi_act, oi_dir = "⚪ 資金溫和換手", "NEUTRAL"
+
+                # 2. 賽克斯指標 (Cycs Momentum: -100 ~ +100)
+                cycs_val = round(max(min((c1h * 18) + ((50 - pos) * 0.8), 99), -99), 1)
+                cycs_sig = "LONG" if cycs_val >= 25 else ("SHORT" if cycs_val <= -25 else "NEUTRAL")
+
+                # 3. 賽克斯 ＋ 獵手雙指標共振判定
+                if oi_dir == "LONG" and cycs_sig == "LONG":
+                    res_tag = "🔥 雙指標【共振做多】買點"
+                elif oi_dir == "SHORT" and cycs_sig == "SHORT":
+                    res_tag = "🔥 雙指標【共振做空】賣點"
+                else:
+                    res_tag = ""
+
+                # 4. 推薦做空 / 做多綜合評分
                 s_sc, l_sc, s_m, l_m = 40, 40, [], []
-                if c1h >= 2.0: s_sc += 24; s_m.append(f"1H急漲+{c1h:.1f}%")
-                elif c1h >= 0.8: s_sc += 10; s_m.append(f"1H偏強+{c1h:.1f}%")
-                if c1h <= -2.0: l_sc += 24; l_m.append(f"1H急跌{c1h:.1f}%")
-                elif c1h <= -0.8: l_sc += 10; l_m.append(f"1H回調{c1h:.1f}%")
-                if pos >= 88: s_sc += 20; s_m.append(f"逼近高點({pos:.0f}%)")
-                elif pos <= 12: l_sc += 20; l_m.append(f"逼近低點({pos:.0f}%)")
-                if c24h >= 10: s_sc += 15; s_m.append(f"暴漲+{c24h:.1f}%")
-                elif c24h <= -10: l_sc += 15; l_msg.append(f"深跌{c24h:.1f}%")
-                if turn >= 20:
-                    if s_sc > l_sc: s_sc += 10; s_m.append(f"高換手{turn:.0f}%")
-                    elif l_sc > s_sc: l_sc += 10; l_m.append(f"高換手{turn:.0f}%")
-                rows.append({"sym":sym,"price":p,"c24h":round(c24h,2),"logo":f"{lp}{sym.lower()}@2x.png","s_sc":min(s_sc,99),"s_msg":" + ".join(s_m) or "動能中性","l_sc":min(l_sc,99),"l_msg":" + ".join(l_m) or "動能中性"})
+                if c1h >= 1.5: s_sc += 22; s_m.append(f"1H急漲+{c1h:.1f}%")
+                if c1h <= -1.5: l_sc += 22; l_m.append(f"1H急跌{c1h:.1f}%")
+                if pos >= 85: s_sc += 18; s_m.append(f"高位乖離({pos:.0f}%)")
+                if pos <= 15: l_sc += 18; l_m.append(f"低位超賣({pos:.0f}%)")
+                if oi_dir == "SHORT": s_sc += 18; s_m.append(oi_act)
+                if oi_dir == "LONG": l_sc += 18; l_m.append(oi_act)
+                if res_tag:
+                    if "做空" in res_tag: s_sc += 15; s_m.append("賽克斯共振")
+                    if "做多" in res_tag: l_sc += 15; l_m.append("賽克斯共振")
+
+                rows.append({
+                    "sym":sym,"price":p,"c1h":round(c1h,2),"c24h":round(c24h,2),"turn":round(turn,1),
+                    "logo":f"{lp}{sym.lower()}@2x.png","oi_act":oi_act,"oi_dir":oi_dir,
+                    "cycs":cycs_val,"res":res_tag,
+                    "s_sc":min(s_sc,99),"s_msg":" + ".join(s_m) or "動能中性",
+                    "l_sc":min(l_sc,99),"l_msg":" + ".join(l_m) or "動能中性"
+                })
     except Exception: pass
     return rows
 
 data = get_data()
 if not data:
-    st.error("行情連線中，請點左上角選單「重新掃描 AI」重試...")
+    st.error("行情連線中，請重新整理網頁...")
 else:
-    ho = ["BTC","ETH","SOL","XRP","DOGE","SUI"]
-    hots = sorted([x for x in data if x["sym"] in ho], key=lambda x: ho.index(x["sym"]))
     shorts = sorted([x for x in data if x["s_sc"] >= x["l_sc"]], key=lambda x: x["s_sc"], reverse=True)[:5]
     longs = sorted([x for x in data if x["l_sc"] > x["s_sc"]], key=lambda x: x["l_sc"], reverse=True)[:5]
+    anomalies = sorted([x for x in data if x["oi_dir"] != "NEUTRAL"], key=lambda x: x["turn"], reverse=True)[:8]
+    resonances = [x for x in data if x["res"] != ""]
+    all_syms = list({x["sym"] for x in shorts + longs + anomalies + resonances})
     ws_url = "".join(["w","ss://","ws.","okx",".","com:8443/ws/v5/public"])
-    payload = json.dumps({"page":page,"hots":hots,"shorts":shorts,"longs":longs,"syms":list({x["sym"] for x in hots+shorts+longs}),"ws":ws_url,"tp":tp_p,"sl":sl_p})
+    payload = json.dumps({"shorts":shorts,"longs":longs,"anom":anomalies,"res":resonances,"syms":all_syms,"ws":ws_url})
 
     html = f"""<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1.0"><style>
     body{{background:#070a10;color:#e2e8f0;font-family:sans-serif;margin:0;padding:4px;}}
-    .title{{font-size:23px;font-weight:900;color:#00f5d4;text-shadow:0 0 10px rgba(0,245,212,0.5);margin-bottom:8px;}}
-    .bar{{display:flex;gap:8px;align-items:center;margin-bottom:12px;font-size:13px;flex-wrap:wrap;}}
-    .clk{{font-family:monospace;color:#00f5d4;background:#0f172a;border:1px solid #1e293b;padding:4px 10px;border-radius:8px;font-weight:bold;}}
-    .sec{{font-size:17px;font-weight:800;margin:10px 0 8px 0;}}
-    .ghot{{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;}}
-    .cbox{{background:#0f172a;border:1.5px solid #38bdf8;border-radius:12px;padding:12px;}}
-    .sbox{{background:#190a0f;border:2px solid #ff2a5f;border-radius:14px;padding:12px;margin-bottom:12px;}}
-    .lbox{{background:#091813;border:2px solid #00f59b;border-radius:14px;padding:12px;margin-bottom:12px;}}
-    .its{{background:rgba(255,42,95,0.1);border-left:4px solid #ff2a5f;border-radius:8px;padding:10px;margin-bottom:8px;}}
-    .itl{{background:rgba(0,245,155,0.1);border-left:4px solid #00f59b;border-radius:8px;padding:10px;margin-bottom:8px;}}
+    .title{{font-size:22px;font-weight:900;color:#00f5d4;text-shadow:0 0 10px rgba(0,245,212,0.5);margin-bottom:6px;}}
+    .bar{{display:flex;gap:8px;align-items:center;margin-bottom:12px;font-size:12px;flex-wrap:wrap;}}
+    .clk{{font-family:monospace;color:#00f5d4;background:#0f172a;border:1px solid #1e293b;padding:4px 9px;border-radius:8px;font-weight:bold;}}
+    .tabs{{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px;position:sticky;top:0;background:#070a10;padding:6px 0;z-index:99;}}
+    .tab{{background:#0f172a;color:#94a3b8;border:1px solid #1e293b;border-radius:10px;padding:9px 4px;font-size:12px;font-weight:800;text-align:center;cursor:pointer;}}
+    .tab.active{{background:linear-gradient(135deg,#00f5d4,#00bbf9);color:#05080f;border:none;box-shadow:0 0 12px rgba(0,245,212,0.4);}}
+    .sec{{font-size:16px;font-weight:800;margin:8px 0;}}
+    .sbox{{background:#190a0f;border:2px solid #ff2a5f;border-radius:14px;padding:11px;margin-bottom:12px;}}
+    .lbox{{background:#091813;border:2px solid #00f59b;border-radius:14px;padding:11px;margin-bottom:12px;}}
+    .abox{{background:#0f172a;border:2px solid #38bdf8;border-radius:14px;padding:11px;margin-bottom:12px;}}
+    .rbox{{background:#1c1507;border:2px solid #facc15;border-radius:14px;padding:11px;margin-bottom:12px;box-shadow:0 0 18px rgba(250,204,21,0.25);}}
+    .its{{background:rgba(255,42,95,0.1);border-left:4px solid #ff2a5f;border-radius:8px;padding:9px;margin-bottom:8px;}}
+    .itl{{background:rgba(0,245,155,0.1);border-left:4px solid #00f59b;border-radius:8px;padding:9px;margin-bottom:8px;}}
+    .ita{{background:rgba(56,189,248,0.08);border-left:4px solid #38bdf8;border-radius:8px;padding:9px;margin-bottom:8px;}}
+    .itr{{background:rgba(250,204,21,0.12);border-left:4px solid #facc15;border-radius:8px;padding:9px;margin-bottom:8px;}}
     .lg{{width:20px;height:20px;border-radius:50%;vertical-align:middle;margin-right:6px;}}
-    .pv{{font-family:monospace;font-size:17px;font-weight:900;padding:1px 4px;border-radius:4px;}}
+    .pv{{font-family:monospace;font-size:16px;font-weight:900;padding:1px 4px;border-radius:4px;}}
     .up{{background:rgba(0,245,155,0.35);color:#00f59b;}}.dn{{background:rgba(255,42,95,0.35);color:#ff5c85;}}
     .hide{{display:none;}}
     </style></head><body>
-    <div class="title">⚡ CYBER HUNTER AI · 量化戰情終端</div>
-    <div class="bar"><div class="clk">🕒 台灣時間：<span id="ck">--:--:--</span></div><div id="st" style="color:#00f59b;font-weight:bold;">⚡ 連線 OKX 毫秒報價...</div></div>
-    <div id="sec-hot"><div class="sec">🔥 熱門主流幣種（一幣一框 · 實時成交價）</div><div class="ghot" id="hc"></div></div>
-    <div id="sec-long"><div class="sec" style="color:#00f59b;">🟢 AI 最佳【做多】TOP 5</div><div class="lbox" id="lc"></div></div>
-    <div id="sec-short"><div class="sec" style="color:#ff5c85;">🔴 AI 最佳【做空】TOP 5</div><div class="sbox" id="sc"></div></div>
+    <div class="title">⚡ CYBER HUNTER AI · 量化共振終端</div>
+    <div class="bar"><div class="clk">🕒 台灣：<span id="ck">--:--:--</span></div><div id="st" style="color:#00f59b;font-weight:bold;">⚡ 連線 OKX 毫秒報價...</div></div>
+    <div class="tabs">
+      <div class="tab active" onclick="sw('rank',this)">🎯 推薦排行</div>
+      <div class="tab" onclick="sw('anom',this)">📡 數據異常</div>
+      <div class="tab" onclick="sw('res',this)">⚡ 共振買點</div>
+      <div class="tab" onclick="sw('all',this)">🌐 全部總覽</div>
+    </div>
+    <div id="p-res" class="hide"><div class="sec" style="color:#facc15;">⚡ 賽克斯指標 ＋ 獵手【雙重共振買點】</div><div class="rbox" id="rc"></div></div>
+    <div id="p-anom" class="hide"><div class="sec" style="color:#38bdf8;">📡 數據異常（主力開倉 / 撤資判別）</div><div class="abox" id="ac"></div></div>
+    <div id="p-rank">
+      <div class="sec" style="color:#ff5c85;">🔴 AI 推薦【做空】TOP 5</div><div class="sbox" id="sc"></div>
+      <div class="sec" style="color:#00f59b;">🟢 AI 推薦【做多】TOP 5</div><div class="lbox" id="lc"></div>
+    </div>
     <script>
     const D={payload},LP={{}};
-    if(D.page==='🔥 熱門幣種'){{document.getElementById('sec-long').classList.add('hide');document.getElementById('sec-short').classList.add('hide');}}
-    else if(D.page==='🟢 做多排行'){{document.getElementById('sec-hot').classList.add('hide');document.getElementById('sec-short').classList.add('hide');}}
-    else if(D.page==='🔴 做空排行'){{document.getElementById('sec-hot').classList.add('hide');document.getElementById('sec-long').classList.add('hide');}}
+    function sw(t,el){{
+      document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+      el.classList.add('active');
+      document.getElementById('p-rank').classList.toggle('hide',t!=='rank'&&t!=='all');
+      document.getElementById('p-anom').classList.toggle('hide',t!=='anom'&&t!=='all');
+      document.getElementById('p-res').classList.toggle('hide',t!=='res'&&t!=='all');
+    }}
     const fmt=p=>p<10?'$'+p.toFixed(4):'$'+p.toLocaleString('en-US',{{minimumFractionDigits:2,maximumFractionDigits:2}});
     setInterval(()=>{{document.getElementById('ck').innerText=new Date().toLocaleTimeString('zh-TW',{{timeZone:'Asia/Taipei',hour12:false}});}},1000);
-    let hh='';D.hots.forEach(c=>{{LP[c.sym]=c.price;const isS=c.s_sc>c.l_sc,bc=isS?'#ff2a5f':(c.l_sc>c.s_sc?'#00f59b':'#38bdf8'),tg=isS?`🔴偏空${{c.s_sc}}分`:(c.l_sc>c.s_sc?`🟢偏多${{c.l_sc}}分`:'⚪盤整'),tp=isS?c.price*(1-D.tp/100):c.price*(1+D.tp/100),sl=isS?c.price*(1+D.sl/100):c.price*(1-D.sl/100);
-    hh+=`<div class="cbox" style="border-color:${{bc}}"><img src="${{c.logo}}" class="lg" onerror="this.style.display='none'"><b>${{c.sym}}/USDT</b>｜<span style="color:${{bc}};font-weight:bold">${{tg}}</span><div style="margin:5px 0"><span class="pv p-${{c.sym}}">${{fmt(c.price)}}</span> (${{c.c24h>=0?'+':''}}${{c.c24h}}%)</div><small>🎯止盈:<span class="tph-${{c.sym}}">${{fmt(tp)}}</span>｜🛡️停損:<span class="slh-${{c.sym}}">${{fmt(sl)}}</span></small></div>`;}});
-    document.getElementById('hc').innerHTML=hh;
-    let sh='';D.shorts.forEach((c,i)=>{{LP[c.sym]=c.price;sh+=`<div class="its"><b>#${{i+1}}</b> <img src="${{c.logo}}" class="lg" onerror="this.style.display='none'"><b>${{c.sym}}/USDT</b>｜<span style="color:#ff5c85;font-weight:bold">勝率${{c.s_sc}}分</span><div style="margin:4px 0">現價:<span class="pv p-${{c.sym}}">${{fmt(c.price)}}</span> (${{c.c24h>=0?'+':''}}${{c.c24h}}%)</div><small>🎯止盈:<b class="tps-${{c.sym}}">${{fmt(c.price*(1-D.tp/100))}}</b>｜🛡️停損:<b class="sls-${{c.sym}}">${{fmt(c.price*(1+D.sl/100))}}</b><br>🔍${{c.s_msg}}</small></div>`;}});
-    document.getElementById('sc').innerHTML=sh;
-    let lh='';D.longs.forEach((c,i)=>{{LP[c.sym]=c.price;lh+=`<div class="itl"><b>#${{i+1}}</b> <img src="${{c.logo}}" class="lg" onerror="this.style.display='none'"><b>${{c.sym}}/USDT</b>｜<span style="color:#00f59b;font-weight:bold">勝率${{c.l_sc}}分</span><div style="margin:4px 0">現價:<span class="pv p-${{c.sym}}">${{fmt(c.price)}}</span> (${{c.c24h>=0?'+':''}}${{c.c24h}}%)</div><small>🎯止盈:<b class="tpl-${{c.sym}}">${{fmt(c.price*(1+D.tp/100))}}</b>｜🛡️停損:<b class="sll-${{c.sym}}">${{fmt(c.price*(1-D.sl/100))}}</b><br>🔍${{c.l_msg}}</small></div>`;}});
-    document.getElementById('lc').innerHTML=lh;
-    function conn(){{const ws=new WebSocket(D.ws);ws.onopen=()=>{{document.getElementById('st').innerText='🟢 OKX 實時成交跳動中';ws.send(JSON.stringify({{op:'subscribe',args:D.syms.map(s=>({{channel:'tickers',instId:s+'-USDT-SWAP'}}))}}));}};
-    ws.onmessage=e=>{{const m=JSON.parse(e.data);if(!m.data||!m.data)return;const d=m.data,s=d.instId.replace('-USDT-SWAP',''),np=parseFloat(d.last),op=LP[s]||np;if(np===op)return;LP[s]=np;const cl=np>op?'up':'dn';
-    document.querySelectorAll('.p-'+s).forEach(el=>{{el.innerText=fmt(np);el.classList.remove('up','dn');void el.offsetWidth;el.classList.add(cl);}});
-    const hc=D.hots.find(x=>x.sym===s);if(hc){{const isS=hc.s_sc>hc.l_sc;document.querySelectorAll('.tph-'+s).forEach(el=>el.innerText=fmt(isS?np*(1-D.tp/100):np*(1+D.tp/100)));document.querySelectorAll('.slh-'+s).forEach(el=>el.innerText=fmt(isS?np*(1+D.sl/100):np*(1-D.sl/100)));}}
-    document.querySelectorAll('.tps-'+s).forEach(el=>el.innerText=fmt(np*(1-D.tp/100)));document.querySelectorAll('.sls-'+s).forEach(el=>el.innerText=fmt(np*(1+D.sl/100)));
-    document.querySelectorAll('.tpl-'+s).forEach(el=>el.innerText=fmt(np*(1+D.tp/100)));document.querySelectorAll('.sll-'+s).forEach(el=>el.innerText=fmt(np*(1-D.sl/100)));}};
-    ws.onclose=()=>setTimeout(conn,3000);}}conn();
-    </script></body></html>"""
-    components.html(html, height=1300, scrolling=True)
+
+    let rh='';
+    if(D.res.length===0){{rh='<div style="color:#94a3b8;padding:8px;">目前兩大指標尚未出現同向極端共振，建議先觀望或參考推薦排行。</div>';}}
+    else{{D.res.forEach(c=>{{LP[c.sym]=c.price;const isL=c.res.includes('做多');
+    rh+=`<div class="itr"><img src="${{c.logo}}" class="lg" onerror="this.style.display='none'"><b>${{c.sym}}/USDT</b> ｜ <span style="color:#facc15;font-weight:900;">${{c.res}}</span><div style="margin:4px 0">現價:<span class="pv p-${{c.sym}}">${{fmt(c.price)}}</span> ｜ 賽克斯動能: <b>${{c.cycs}}</b></div><small>主力流向: <b>${{c.oi_act}}</b><br>🎯 止盈(4%): <b>${{fmt(isL?c.price*1.04:c.price*0.96)}}</b> ｜ 🛡️ 停損(2%): <b>${{fmt(isL?c.price*0.98:c.price*1.02)}}</b></small></div>`;}});}}
+    document.getElementById('rc').innerHTML=rh;
+
+    let ah='';D.anom.forEach(c=>{{LP[c.sym]=c.price;
+    ah+=`<div class="ita"><img src="${{c.logo}}" class="lg" onerror="this.style.display='none'"><b>${{c.sym}}/USDT</b> ｜ <b>${{c.oi_act}}</b><div style="margin:4px 0">現價:<span class="pv p-${{c.sym}}">${{fmt(c.price)}}</span> (1H: ${{c.c1h>=0?'+':''}}${{c.c1h}}% / 換手: ${{c.turn}}%)</div><small style="color:#94a3b8;">賽克斯讀數: ${{c.cycs}} ${{c.res?'｜ '+c.res:''}}</small></div>`;}});
+    document.getElementById('ac').innerHTML=ah;
+

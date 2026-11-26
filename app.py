@@ -117,11 +117,11 @@ document.getElementById('sc').innerHTML=sh;
 let lh='';D.longs.forEach((c,i)=>{{LP[c.sym]=c.price;lh+=`<div class="itl"><b>#${{i+1}}</b> <img src="${{c.logo}}" class="lg" onerror="this.style.display='none'"><b>${{c.sym}}/USDT</b>｜<span style="color:#00f59b;font-weight:bold">勝率${{c.l_sc}}分</span><div style="margin:4px 0">現價:<span class="pv p-${{c.sym}}">${{fmt(c.price)}}</span> (${{c.c24h>=0?'+':''}}${{c.c24h}}%)</div><small>🎯止盈:<b>${{fmt(c.price*1.04)}}</b>｜🛡️停損:<b>${{fmt(c.price*0.98)}}</b><br>🔍${{c.l_msg}}</small></div>`;}});
 document.getElementById('lc').innerHTML=lh;
 function updateTick(s,np){{const op=LP[s];if(!op||np===op)return;LP[s]=np;const cl=np>op?'up':'dn';
-document.querySelectorAll('.p-'+s).forEach(el=>{{el.innerText=fmt(np);el.classList.remove('up','dn');void el.offsetWidth;el.classList.add(cl);}});}}
-function connWS(){{const ws=new WebSocket(D.ws);ws.onopen=()=>{{document.getElementById('st').innerText='🟢 OKX 毫秒級即時跳動中';
-D.syms.forEach(s=>ws.send(JSON.stringify({{op:'subscribe',args:[{{channel:'tickers',instId:s+'-USDT-SWAP'}}]}})));}};
-ws.onmessage=e=>{{const m=JSON.parse(e.data);if(m.data&&m.data)updateTick(m.data.instId.replace('-USDT-SWAP',''),parseFloat(m.data.last));}};
-ws.onclose=()=>setTimeout(connWS,3000);}}connWS();
-setInterval(()=>{{fetch(D.rest).then(r=>r.json()).then(j=>{{if(j.data)j.data.forEach(d=>updateTick(d.instId.replace('-USDT-SWAP',''),parseFloat(d.last)));}}).catch(()=>{{}});}},3000);
+document.querySelectorAll('.p-'+s).forEach(el=>{{el.innerText=fmt(np);el.classList.remove('up','dn');void el.offsetWidth;el.classList.add(cl);setTimeout(()=>el.classList.remove('up','dn'),400);}});}}
+function connWS(){{const ws=new WebSocket(D.ws);ws.onopen=()=>{{document.getElementById('st').innerText='⚡ OKX 逐筆成交狂跳中';
+D.syms.forEach(s=>ws.send(JSON.stringify({{op:'subscribe',args:[{{channel:'trades',instId:s+'-USDT-SWAP'}},{{channel:'bbo-tbt',instId:s+'-USDT-SWAP'}}]}})));}};
+ws.onmessage=e=>{{const m=JSON.parse(e.data);if(m.data&&m.data){{const d=m.data,s=d.instId.replace('-USDT-SWAP',''),p=parseFloat(d.px||d.bidPx||d.last);if(p>0)updateTick(s,p);}}}};
+ws.onclose=()=>setTimeout(connWS,2000);}}connWS();
+setInterval(()=>{{fetch(D.rest).then(r=>r.json()).then(j=>{{if(j.data)j.data.forEach(d=>updateTick(d.instId.replace('-USDT-SWAP',''),parseFloat(d.last)));}}).catch(()=>{{}});}},1000);
 </script></body></html>"""
 components.html(html, height=1800, scrolling=True)

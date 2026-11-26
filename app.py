@@ -6,127 +6,119 @@ import time
 from datetime import datetime
 
 st.set_page_config(
-    page_title="AI 全市場合約獵手 Pro v2.4",
+    page_title="AI 全市場合約獵手 Pro v2.5",
     page_icon="🏆",
     layout="wide"
 )
 
 st.title("🏆 AI 全市場合約多空排行榜 (全自動實時跳動版)")
-st.caption("全自動掃描前 40 大活躍合約幣種 · 隨時間自動更新報價與勝率評分 · 僅供交易輔助參考")
+st.caption("全自動掃描全市場前 50 大熱門合約幣種 · 隨時間自動更新報價與勝率評分 · 僅供交易輔助參考")
 
-def calculate_rsi(closes, period=14):
-    if len(closes) < period + 1:
-        return 50.0
-    deltas = np.diff(closes)
-    gains = np.where(deltas > 0, deltas, 0)
-    losses = np.where(deltas < 0, -deltas, 0)
-    avg_gain = np.mean(gains[-period:])
-    avg_loss = np.mean(losses[-period:])
-    if avg_loss == 0:
-        return 100.0
-    rs = avg_gain / avg_loss
-    return 100 - (100 / (1 + rs))
+@st.cache_data(ttl=20)
+def scan_market_fast():
+    # 使用 CoinGecko 全球無地域限制批量行情接口（一次請求直接拿 50 個幣種 1H / 24H / 7D 數據，絕不超速）
+    p1 = "https://api." + "coingecko.com"
+    p2 = "/api/v3/coins/markets?vs_currency=usd&order=volume_desc&per_page=50&page=1&price_change_percentage=1h,24h,7d"
+    headers = {"Accept": "application/json", "User-Agent": "Mozilla/5.0"}
 
-@st.cache_data(ttl=25)
-def scan_global_market():
-    headers = {"User-Agent": "Mozilla/5.0"}
-    host = "https://min-api." + "cryptocompare.com"
-    url = host + "/data/top/totalvolfull?limit=40&tsym=USDT"
     try:
-        res = requests.get(url, headers=headers, timeout=10).json()
-        raw_list = res.get("Data", [])
+        res = requests.get(p1 + p2, headers=headers, timeout=10)
+        if res.status_code != 200:
+            return []
+        coins = res.json()
     except Exception:
         return []
 
     results = []
-    for item in raw_list:
-        coin_info = item.get("CoinInfo", {})
-        raw_data = item.get("RAW", {}).get("USDT", {})
-        coin = coin_info.get("Name", "")
-        if not coin or not raw_data or coin in ["USDT", "USDC", "FDUSD", "DAI"]:
+    stable_coins = {"USDT", "USDC", "FDUSD", "DAI", "TUSD", "USDE", "PYUSD", "BUSD"}
+
+    for c in coins:
+        symbol = c.get("symbol", "").upper()
+        if not symbol or symbol in stable_coins:
             continue
 
-        last_price = float(raw_data.get("PRICE", 0))
-        change_24h = float(raw_data.get("CHANGEPCT24HOUR", 0))
-        change_1h = float(raw_data.get("CHANGEPCTHOUR", 0))
-
-        try:
-            k_url = host + f"/data/v2/histominute?fsym={coin}&tsym=USDT&limit=20&aggregate=15"
-            k_res = requests.get(k_url, headers=headers, timeout=5).json()
-            candles = k_res.get("Data", {}).get("Data", [])
-            if len(candles) < 15:
-                continue
-
-            closes = [float(c["close"]) for c in candles]
-            vols = [float(c["volumeto"]) for c in candles]
-            rsi_15m = calculate_rsi(closes)
-            change_15m = ((closes[-1] - closes[-2]) / closes[-2]) * 100 if closes[-2] else 0
-
-            avg_vol = np.mean(vols[-11:-1]) if len(vols) >= 11 else np.mean(vols)
-            vol_ratio = (vols[-1] / avg_vol) if avg_vol > 0 else 1.0
-
-            short_score = 40
-            short_reasons = []
-
-            long_score = 40
-            long_reasons = []
-
-            if rsi_15m >= 72:
-                short_score += 25
-                short_reasons.append(f"15m嚴重超買(RSI:{rsi_15m:.0f})")
-            elif rsi_15m >= 65:
-                short_score += 12
-                short_reasons.append(f"短線偏高(RSI:{rsi_15m:.0f})")
-
-            if rsi_15m <= 28:
-                long_score += 25
-                long_reasons.append(f"15m嚴重超賣(RSI:{rsi_15m:.0f})")
-            elif rsi_15m <= 35:
-                long_score += 12
-                long_reasons.append(f"短線超跌(RSI:{rsi_15m:.0f})")
-
-            if change_15m < -0.35 and vol_ratio > 1.4:
-                short_score += 25
-                short_reasons.append(f"主力放量砸盤({vol_ratio:.1f}倍量)")
-            elif change_15m > 0.35 and vol_ratio > 1.4:
-                long_score += 25
-                long_reasons.append(f"大資金放量拉升({vol_ratio:.1f}倍量)")
-
-            if change_1h >= 2.5:
-                short_score += 15
-                short_reasons.append(f"1H急漲+{change_1h:.1f}%易獲利了結")
-            elif change_1h <= -2.5:
-                long_score += 15
-                long_reasons.append(f"1H急跌{change_1h:.1f}%具反彈動能")
-
-            if change_24h >= 12:
-                short_score += 10
-                short_reasons.append(f"24H暴漲+{change_24h:.1f}%防回調")
-            elif change_24h <= -12:
-                long_score += 10
-                long_reasons.append(f"24H深跌{change_24h:.1f}%博反彈")
-
-            results.append({
-                "幣種": coin,
-                "現價": last_price,
-                "1H漲跌": round(change_1h, 2),
-                "24H漲跌": round(change_24h, 2),
-                "15mRSI": round(rsi_15m, 1),
-                "量能倍數": round(vol_ratio, 2),
-                "做空評分": min(short_score, 99),
-                "做空依據": " + ".join(short_reasons) if short_reasons else "動能中性觀望",
-                "做多評分": min(long_score, 99),
-                "做多依據": " + ".join(long_reasons) if long_reasons else "動能中性觀望"
-            })
-        except Exception:
+        price = float(c.get("current_price") or 0)
+        if price <= 0:
             continue
+
+        c1h = float(c.get("price_change_percentage_1h_in_currency") or 0)
+        c24h = float(c.get("price_change_percentage_24h_in_currency") or 0)
+        c7d = float(c.get("price_change_percentage_7d_in_currency") or 0)
+        vol_24h = float(c.get("total_volume") or 0)
+        mcap = float(c.get("market_cap") or 1)
+        high_24h = float(c.get("high_24h") or price)
+        low_24h = float(c.get("low_24h") or price)
+
+        # 計算換手率 (24H成交量 / 市值，越高代表主力資金越活躍)
+        turnover = (vol_24h / mcap) * 100 if mcap > 0 else 0
+
+        # 計算目前價格在 24H 高低點區間的位置 (0% = 最低點, 100% = 最高點)
+        range_pos = ((price - low_24h) / (high_24h - low_24h) * 100) if high_24h > low_24h else 50.0
+
+        # ================= AI 量化評分模型 =================
+        short_score = 40
+        short_reasons = []
+
+        long_score = 40
+        long_reasons = []
+
+        # 1. 短線 1 小時急漲 / 急跌動能
+        if c1h >= 2.0:
+            short_score += 22
+            short_reasons.append(f"1H急漲+{c1h:.1f}%短線過熱")
+        elif c1h >= 1.0:
+            short_score += 10
+            short_reasons.append(f"1H偏強+{c1h:.1f}%")
+
+        if c1h <= -2.0:
+            long_score += 22
+            long_reasons.append(f"1H急跌{c1h:.1f}%超賣區")
+        elif c1h <= -1.0:
+            long_score += 10
+            long_reasons.append(f"1H回調{c1h:.1f}%")
+
+        # 2. 日內區間極端位置 (摸頂防回調 / 探底博反彈)
+        if range_pos >= 92:
+            short_score += 18
+            short_reasons.append(f"逼近24H最高點({range_pos:.0f}%位置)")
+        elif range_pos <= 8:
+            long_score += 18
+            long_reasons.append(f"逼近24H最低點({range_pos:.0f}%位置)")
+
+        # 3. 24H 暴漲暴跌乖離率
+        if c24h >= 10:
+            short_score += 15
+            short_reasons.append(f"日內暴漲+{c24h:.1f}%易獲利了結")
+        elif c24h <= -10:
+            long_score += 15
+            long_reasons.append(f"日內深跌{c24h:.1f}%具反彈空間")
+
+        # 4. 資金換手活躍度加權 (高換手代表合約流動性佳、波動大)
+        if turnover >= 25:
+            short_score += 10
+            long_score += 10
+            short_reasons.append(f"主力高換手({turnover:.0f}%)")
+            long_reasons.append(f"主力高換手({turnover:.0f}%)")
+
+        results.append({
+            "幣種": symbol,
+            "現價": price,
+            "1H漲跌": round(c1h, 2),
+            "24H漲跌": round(c24h, 2),
+            "日內位置(%)": round(range_pos, 1),
+            "換手率(%)": round(turnover, 1),
+            "做空評分": min(short_score, 99),
+            "做空依據": " + ".join(short_reasons) if short_reasons else "動能中性觀望",
+            "做多評分": min(long_score, 99),
+            "做多依據": " + ".join(long_reasons) if long_reasons else "動能中性觀望"
+        })
 
     return results
 
 with st.sidebar:
     st.header("⚙️ AI 策略與即時更新")
     auto_refresh = st.toggle("🟢 開啟全自動即時跳動", value=True)
-    refresh_sec = st.slider("自動刷新間隔 (秒)", 15, 120, 30, 5)
+    refresh_sec = st.slider("自動刷新間隔 (秒)", 20, 120, 30, 5)
     stop_loss_pct = st.slider("建議停損幅度 (%)", 1.0, 5.0, 2.0, 0.5)
     take_profit_pct = st.slider("建議止盈幅度 (%)", 2.0, 15.0, 4.0, 0.5)
     if st.button("🔄 立即手動刷新"):
@@ -135,11 +127,11 @@ with st.sidebar:
     st.divider()
     st.warning("⚠️ **合約風控鐵律**：\n1. 務必使用「逐倉模式」\n2. 進場同時掛好停損單\n3. 評分高代表盈虧比佳，非 100% 必勝")
 
-with st.spinner("🤖 AI 正在即時掃描全市場前 40 大熱門合約資金流向與 K 線..."):
-    market_data = scan_global_market()
+with st.spinner("🤖 AI 正在極速掃描全市場前 50 大活躍合約幣種..."):
+    market_data = scan_market_fast()
 
 if not market_data:
-    st.error("暫時無法連線至行情伺服器，請點擊左上角選單「立即手動刷新」重試。")
+    st.error("行情介面忙碌中，請稍候 10 秒自動重試，或點擊左上角選單「立即手動刷新」。")
 else:
     df = pd.DataFrame(market_data)
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -160,7 +152,7 @@ else:
 
             with st.container(border=True):
                 st.markdown(f"### 📉 {row['幣種']}/USDT ｜ 勝率評分：**`{row['做空評分']} 分`**")
-                st.markdown(f"**進場參考價**：`{fmt}` ｜ **24H漲跌**：`{row['24H漲跌']:+.2f}%`")
+                st.markdown(f"**進場參考價**：`{fmt}` ｜ **1H漲跌**：`{row['1H漲跌']:+.2f}%` ｜ **24H**：`{row['24H漲跌']:+.2f}%`")
                 st.markdown(f"🎯 **建議止盈**：`{tp_fmt}` (-{take_profit_pct}%) ｜ 🛡️ **嚴格停損**：`{sl_fmt}` (+{stop_loss_pct}%)")
                 st.caption(f"🔍 **AI 觸發訊號**：{row['做空依據']}")
 
@@ -177,13 +169,13 @@ else:
 
             with st.container(border=True):
                 st.markdown(f"### 📈 {row['幣種']}/USDT ｜ 勝率評分：**`{row['做多評分']} 分`**")
-                st.markdown(f"**進場參考價**：`{fmt}` ｜ **24H漲跌**：`{row['24H漲跌']:+.2f}%`")
+                st.markdown(f"**進場參考價**：`{fmt}` ｜ **1H漲跌**：`{row['1H漲跌']:+.2f}%` ｜ **24H**：`{row['24H漲跌']:+.2f}%`")
                 st.markdown(f"🎯 **建議止盈**：`{tp_fmt}` (+{take_profit_pct}%) ｜ 🛡️ **嚴格停損**：`{sl_fmt}` (-{stop_loss_pct}%)")
                 st.caption(f"🔍 **AI 觸發訊號**：{row['做多依據']}")
 
     st.divider()
     st.subheader("📊 全市場活躍幣種即時量化總表")
-    display_df = df[["幣種", "現價", "1H漲跌", "24H漲跌", "15mRSI", "量能倍數", "做空評分", "做多評分"]].copy()
+    display_df = df[["幣種", "現價", "1H漲跌", "24H漲跌", "日內位置(%)", "換手率(%)", "做空評分", "做多評分"]].copy()
     st.dataframe(display_df, use_container_width=True, hide_index=True)
 
 if auto_refresh:

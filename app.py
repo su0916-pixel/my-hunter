@@ -113,6 +113,7 @@ body{{background-color:#060608;background-image:radial-gradient(circle at 20% 10
   <div class="clk">🕒 台灣：<span id="ck">--:--:--</span></div>
   <div id="st" style="color:#fbbf24;font-weight:bold;">⚡ 同步 OKX 真實盤口中...</div>
   <button id="snd-btn" class="snd-btn" onclick="toggleSnd()">🔕 音效:關</button>
+  <button class="snd-btn" onclick="refreshAll(this)">🔄 刷新AI</button>
 </div>
 <div class="mkt-panel">
   <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px;">

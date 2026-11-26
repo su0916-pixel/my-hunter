@@ -1,8 +1,9 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import requests
 import pandas as pd
 import time
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 st.set_page_config(page_title="CYBER HUNTER AI", page_icon="⚡", layout="wide")
 
@@ -16,10 +17,27 @@ header[data-testid="stHeader"] { background: transparent; }
 .long-box { background: #091813; border: 2px solid #00f59b; border-radius: 16px; padding: 14px; margin-bottom: 14px; box-shadow: 0 0 20px rgba(0,245,155,0.25); }
 .item-s { background: rgba(255,42,95,0.1); border-left: 4px solid #ff2a5f; border-radius: 8px; padding: 10px; margin-bottom: 8px; }
 .item-l { background: rgba(0,245,155,0.1); border-left: 4px solid #00f59b; border-radius: 8px; padding: 10px; margin-bottom: 8px; }
+.coin-logo { width: 22px; height: 22px; border-radius: 50%; vertical-align: middle; margin-right: 6px; box-shadow: 0 0 6px rgba(255,255,255,0.25); }
 </style>
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="cyber-title">⚡ CYBER HUNTER AI · 量化戰情終端</div>', unsafe_allow_html=True)
+
+# 嵌入每秒即時跳動的台灣時間電子鐘
+components.html("""
+<div style="font-family:'Courier New',monospace; color:#38bdf8; font-size:15px; font-weight:bold; background:rgba(15,23,42,0.8); border:1px solid #1e293b; border-radius:8px; padding:6px 12px; display:inline-block;">
+  🕒 台灣即時時間：<span id="tw-clock" style="color:#00f5d4;">載入中...</span>
+</div>
+<script>
+function updateClock() {
+  const now = new Date();
+  const twTime = now.toLocaleTimeString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false });
+  document.getElementById('tw-clock').innerText = twTime;
+}
+setInterval(updateClock, 1000);
+updateClock();
+</script>
+""", height=42)
 
 @st.cache_data(ttl=35)
 def get_market():
@@ -27,7 +45,6 @@ def get_market():
     skip = {"USDT", "USDC", "FDUSD", "DAI", "TUSD", "USDE", "PYUSD", "BUSD", "USDS", "WBTC", "WETH"}
     headers = {"User-Agent": "Mozilla/5.0"}
 
-    # 防手機自動截短網域保護組裝
     d1 = "".join(["ht", "tps://", "api.", "coin", "paprika", ".", "com", "/v1/tickers?limit=70"])
     try:
         r = requests.get(d1, headers=headers, timeout=10)
@@ -44,12 +61,14 @@ def get_market():
                 mc = float(q.get("market_cap") or 1)
                 turn = (vol / mc) * 100 if mc > 0 else 0
                 pos = min(max(50.0 + c24h * 2.5, 5.0), 95.0)
-                rows.append((sym, p, c1h, c24h, pos, turn))
+                # 自動組裝該幣種專屬彩色官方 Logo 網址
+                logo_url = "".join(["ht", "tps://", "assets.", "coin", "cap", ".", "io/assets/icons/", sym.lower(), "@2x.png"])
+                rows.append((sym, p, c1h, c24h, pos, turn, logo_url))
     except Exception:
         pass
 
     final_data = []
-    for sym, p, c1h, c24h, pos, turn in rows:
+    for sym, p, c1h, c24h, pos, turn, logo_url in rows:
         s_sc, l_sc = 40, 40
         s_msg, l_msg = [], []
 
@@ -70,7 +89,7 @@ def get_market():
 
         final_data.append({
             "幣種": sym, "現價": p, "1H": round(c1h, 2), "24H": round(c24h, 2),
-            "位置": round(pos, 1), "換手": round(turn, 1),
+            "位置": round(pos, 1), "換手": round(turn, 1), "Logo": logo_url,
             "空分": min(s_sc, 99), "空因": " + ".join(s_msg) if s_msg else "動能中性",
             "多分": min(l_sc, 99), "多因": " + ".join(l_msg) if l_msg else "動能中性"
         })
@@ -79,7 +98,7 @@ def get_market():
 with st.sidebar:
     st.header("⚙️ 戰情控制")
     auto_ref = st.toggle("🟢 全自動即時跳動", value=True)
-    sec = st.slider("刷新秒數", 30, 120, 45, 5)
+    sec = st.slider("數據刷新秒數", 30, 120, 45, 5)
     sl_p = st.slider("停損 (%)", 1.0, 5.0, 2.0, 0.5)
     tp_p = st.slider("止盈 (%)", 2.0, 15.0, 4.0, 0.5)
     if st.button("🔄 立即刷新"):
@@ -91,7 +110,8 @@ if not data:
     st.error("行情連線中，請稍候自動刷新...")
 else:
     df = pd.DataFrame(data)
-    st.caption(f"🟢 實時連線中 · 更新：`{datetime.now().strftime('%H:%M:%S')}`（每 {sec} 秒自動跳動）")
+    tw_now = datetime.now(timezone(timedelta(hours=8))).strftime("%H:%M:%S")
+    st.caption(f"🟢 實時連線中 · 數據更新於台灣時間 `{tw_now}`（每 {sec} 秒自動更新）")
 
     st.markdown("### 🔥 熱門主流幣種（一幣一框）")
     hots = ["BTC", "ETH", "SOL", "XRP", "DOGE", "SUI"]
@@ -111,7 +131,8 @@ else:
             sl = p * (1 + sl_p/100) if is_s else p * (1 - sl_p/100)
             tpf = f"${tp:,.4f}" if p < 10 else f"${tp:,.2f}"
             slf = f"${sl:,.4f}" if p < 10 else f"${sl:,.2f}"
-            st.markdown(f'<div class="coin-box" style="border-color:{bc};"><b>💎 {r["幣種"]}/USDT</b> ｜ <span style="color:{bc};font-weight:bold;">{tag}</span><br><span style="font-size:1.15rem;font-weight:900;">{fmt}</span> ({r["24H"]:+.2f}%)<br><small>🎯 止盈: {tpf} ｜ 🛡️ 停損: {slf}</small></div>', unsafe_allow_html=True)
+            img_tag = f'<img src="{r["Logo"]}" class="coin-logo" onerror="this.style.display=\'none\'">'
+            st.markdown(f'<div class="coin-box" style="border-color:{bc};">{img_tag}<b>{r["幣種"]}/USDT</b> ｜ <span style="color:{bc};font-weight:bold;">{tag}</span><br><span style="font-size:1.15rem;font-weight:900;">{fmt}</span> ({r["24H"]:+.2f}%)<br><small>🎯 止盈: {tpf} ｜ 🛡️ 停損: {slf}</small></div>', unsafe_allow_html=True)
 
     c1, c2 = st.columns(2)
     with c1:
@@ -123,7 +144,8 @@ else:
             fmt = f"${p:,.4f}" if p < 10 else f"${p:,.2f}"
             tpf = f"${p*(1-tp_p/100):,.4f}" if p < 10 else f"${p*(1-tp_p/100):,.2f}"
             slf = f"${p*(1+sl_p/100):,.4f}" if p < 10 else f"${p*(1+sl_p/100):,.2f}"
-            html_s += f'<div class="item-s"><b>#{idx} 📉 {r["幣種"]}/USDT</b> ｜ <span style="color:#ff5c85;font-weight:bold;">勝率 {r["空分"]} 分</span><br>進場: <b>{fmt}</b> (1H: {r["1H"]:+.2f}% / 24H: {r["24H"]:+.2f}%)<br>🎯 止盈: <b>{tpf}</b> ｜ 🛡️ 停損: <b>{slf}</b><br><small style="color:#94a3b8;">🔍 {r["空因"]}</small></div>'
+            img_tag = f'<img src="{r["Logo"]}" class="coin-logo" onerror="this.style.display=\'none\'">'
+            html_s += f'<div class="item-s"><b>#{idx}</b> {img_tag}<b>{r["幣種"]}/USDT</b> ｜ <span style="color:#ff5c85;font-weight:bold;">勝率 {r["空分"]} 分</span><br>進場: <b>{fmt}</b> (1H: {r["1H"]:+.2f}% / 24H: {r["24H"]:+.2f}%)<br>🎯 止盈: <b>{tpf}</b> ｜ 🛡️ 停損: <b>{slf}</b><br><small style="color:#94a3b8;">🔍 {r["空因"]}</small></div>'
         html_s += '</div>'
         st.markdown(html_s, unsafe_allow_html=True)
 
@@ -136,7 +158,8 @@ else:
             fmt = f"${p:,.4f}" if p < 10 else f"${p:,.2f}"
             tpf = f"${p*(1+tp_p/100):,.4f}" if p < 10 else f"${p*(1+tp_p/100):,.2f}"
             slf = f"${p*(1-sl_p/100):,.4f}" if p < 10 else f"${p*(1-sl_p/100):,.2f}"
-            html_l += f'<div class="item-l"><b>#{idx} 📈 {r["幣種"]}/USDT</b> ｜ <span style="color:#00f59b;font-weight:bold;">勝率 {r["多分"]} 分</span><br>進場: <b>{fmt}</b> (1H: {r["1H"]:+.2f}% / 24H: {r["24H"]:+.2f}%)<br>🎯 止盈: <b>{tpf}</b> ｜ 🛡️ 停損: <b>{slf}</b><br><small style="color:#94a3b8;">🔍 {r["多因"]}</small></div>'
+            img_tag = f'<img src="{r["Logo"]}" class="coin-logo" onerror="this.style.display=\'none\'">'
+            html_l += f'<div class="item-l"><b>#{idx}</b> {img_tag}<b>{r["幣種"]}/USDT</b> ｜ <span style="color:#00f59b;font-weight:bold;">勝率 {r["多分"]} 分</span><br>進場: <b>{fmt}</b> (1H: {r["1H"]:+.2f}% / 24H: {r["24H"]:+.2f}%)<br>🎯 止盈: <b>{tpf}</b> ｜ 🛡️ 停損: <b>{slf}</b><br><small style="color:#94a3b8;">🔍 {r["多因"]}</small></div>'
         html_l += '</div>'
         st.markdown(html_l, unsafe_allow_html=True)
 

@@ -2,8 +2,8 @@ import streamlit as st
 import streamlit.components.v1 as components
 import requests, json
 
-st.set_page_config(page_title="CYBER HUNTER AI", page_icon="⚡", layout="wide")
-st.markdown("<style>.stApp{background:#070a10;color:#e2e8f0;}header[data-testid='stHeader'],section[data-testid='stSidebar']{display:none!important;}.block-container{padding-top:0.5rem;padding-left:0.5rem;padding-right:0.5rem;}</style>", unsafe_allow_html=True)
+st.set_page_config(page_title="CYBER HUNTER AI v6.0", page_icon="⚡", layout="wide")
+st.markdown("<style>.stApp{background:#05080f;color:#e2e8f0;}header[data-testid='stHeader'],section[data-testid='stSidebar']{display:none!important;}.block-container{padding-top:0.4rem;padding-left:0.4rem;padding-right:0.4rem;}</style>", unsafe_allow_html=True)
 
 @st.cache_data(ttl=50)
 def get_data():
@@ -44,6 +44,15 @@ def get_data():
     except Exception: pass
     return rows
 data = get_data()
+total_n = len(data) or 1
+up_n = sum(1 for x in data if x["c1h"] > 0)
+bull_pct = round((up_n / total_n) * 100)
+avg_1h = sum(x["c1h"] for x in data) / total_n
+mkt_rsi = round(max(min(50 + avg_1h * 8 + (bull_pct - 50) * 0.4, 95), 5), 1)
+if mkt_rsi >= 58 and bull_pct >= 55: mkt_dir, mkt_col = "🟢 整體市場：強勢看多 (BULLISH)", "#00f59b"
+elif mkt_rsi <= 42 and bull_pct <= 45: mkt_dir, mkt_col = "🔴 整體市場：明顯看空 (BEARISH)", "#ff2a5f"
+else: mkt_dir, mkt_col = "🟡 整體市場：震盪盤平 (NEUTRAL)", "#facc15"
+
 ho = ["BTC","ETH","SOL","XRP","DOGE","SUI"]
 hots = sorted([x for x in data if x["sym"] in ho], key=lambda x: ho.index(x["sym"]))
 shorts = sorted([x for x in data if x["s_sc"] >= x["l_sc"]], key=lambda x: x["s_sc"], reverse=True)[:5]
@@ -53,34 +62,45 @@ res_list = [x for x in data if x["res"] != ""]
 all_syms = list({x["sym"] for x in hots + shorts + longs + anom + res_list})
 ws_url = "".join(["w","ss://","ws.","okx",".","com:8443/ws/v5/public"])
 rest_url = "".join(["ht","tps://","www.","okx",".","com/api/v5/market/tickers?instType=SWAP"])
-payload = json.dumps({"hots":hots,"shorts":shorts,"longs":longs,"anom":anom,"res":res_list,"syms":all_syms,"ws":ws_url,"rest":rest_url})
+payload = json.dumps({"hots":hots,"shorts":shorts,"longs":longs,"anom":anom,"res":res_list,"syms":all_syms,"ws":ws_url,"rest":rest_url,"mdir":mkt_dir,"mcol":mkt_col,"mrsi":mkt_rsi,"bpct":bull_pct})
 
 html = f"""<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1.0"><style>
-body{{background:#070a10;color:#e2e8f0;font-family:sans-serif;margin:0;padding:4px;}}
-.title{{font-size:21px;font-weight:900;color:#00f5d4;text-shadow:0 0 10px rgba(0,245,212,0.5);margin-bottom:6px;}}
-.bar{{display:flex;gap:8px;align-items:center;margin-bottom:10px;font-size:12px;flex-wrap:wrap;}}
-.clk{{font-family:monospace;color:#00f5d4;background:#0f172a;border:1px solid #1e293b;padding:4px 9px;border-radius:8px;font-weight:bold;}}
-.tabs{{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:12px;position:sticky;top:0;background:#070a10;padding:5px 0;z-index:99;}}
+body{{background-color:#05080f;background-image:radial-gradient(circle at 15% 15%,rgba(0,245,212,0.12),transparent 40%),radial-gradient(circle at 85% 80%,rgba(241,91,181,0.12),transparent 40%),linear-gradient(rgba(0,245,212,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(0,245,212,0.04) 1px,transparent 1px);background-size:100% 100%,100% 100%,26px 26px,26px 26px;color:#e2e8f0;font-family:sans-serif;margin:0;padding:4px;}}
+.title{{font-size:21px;font-weight:900;background:linear-gradient(90deg,#00f5d4,#00bbf9,#f15bb5);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px;}}
+.bar{{display:flex;gap:8px;align-items:center;margin-bottom:8px;font-size:12px;flex-wrap:wrap;}}
+.clk{{font-family:monospace;color:#00f5d4;background:rgba(15,23,42,0.85);border:1px solid #1e293b;padding:4px 9px;border-radius:8px;font-weight:bold;}}
+.mkt-panel{{background:rgba(15,23,42,0.85);backdrop-filter:blur(8px);border:1.5px solid #334155;border-radius:14px;padding:10px 12px;margin-bottom:10px;box-shadow:0 0 18px rgba(0,187,249,0.15);}}
+.rsi-track{{width:100%;height:10px;background:linear-gradient(90deg,#00f59b 0%,#facc15 50%,#ff2a5f 100%);border-radius:6px;position:relative;margin:8px 0 4px 0;}}
+.rsi-pin{{width:14px;height:14px;background:#fff;border:2.5px solid #05080f;border-radius:50%;position:absolute;top:-2px;transform:translateX(-50%);box-shadow:0 0 8px #fff;}}
+.tabs{{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:12px;position:sticky;top:0;background:rgba(5,8,15,0.92);padding:5px 0;z-index:99;}}
 .tab{{background:#0f172a;color:#94a3b8;border:1px solid #1e293b;border-radius:8px;padding:8px 2px;font-size:11px;font-weight:800;text-align:center;cursor:pointer;}}
 .tab.active{{background:linear-gradient(135deg,#00f5d4,#00bbf9);color:#05080f;border:none;}}
 .sec{{font-size:15px;font-weight:800;margin:8px 0;}}
 .ghot{{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px;margin-bottom:12px;}}
-.cbox{{background:#0f172a;border:1.5px solid #38bdf8;border-radius:12px;padding:11px;}}
-.sbox{{background:#190a0f;border:2px solid #ff2a5f;border-radius:14px;padding:10px;margin-bottom:12px;}}
-.lbox{{background:#091813;border:2px solid #00f59b;border-radius:14px;padding:10px;margin-bottom:12px;}}
-.abox{{background:#0f172a;border:2px solid #38bdf8;border-radius:14px;padding:10px;margin-bottom:12px;}}
-.rbox{{background:#1c1507;border:2px solid #facc15;border-radius:14px;padding:10px;margin-bottom:12px;}}
-.its{{background:rgba(255,42,95,0.1);border-left:4px solid #ff2a5f;border-radius:8px;padding:9px;margin-bottom:8px;}}
-.itl{{background:rgba(0,245,155,0.1);border-left:4px solid #00f59b;border-radius:8px;padding:9px;margin-bottom:8px;}}
-.ita{{background:rgba(56,189,248,0.08);border-left:4px solid #38bdf8;border-radius:8px;padding:9px;margin-bottom:8px;}}
-.itr{{background:rgba(250,204,21,0.12);border-left:4px solid #facc15;border-radius:8px;padding:9px;margin-bottom:8px;}}
+.cbox{{background:rgba(15,23,42,0.88);border:1.5px solid #38bdf8;border-radius:12px;padding:11px;}}
+.sbox{{background:rgba(25,10,15,0.9);border:2px solid #ff2a5f;border-radius:14px;padding:10px;margin-bottom:12px;}}
+.lbox{{background:rgba(9,24,19,0.9);border:2px solid #00f59b;border-radius:14px;padding:10px;margin-bottom:12px;}}
+.abox{{background:rgba(15,23,42,0.9);border:2px solid #38bdf8;border-radius:14px;padding:10px;margin-bottom:12px;}}
+.rbox{{background:rgba(28,21,7,0.9);border:2px solid #facc15;border-radius:14px;padding:10px;margin-bottom:12px;}}
+.its{{background:rgba(255,42,95,0.12);border-left:4px solid #ff2a5f;border-radius:8px;padding:9px;margin-bottom:8px;}}
+.itl{{background:rgba(0,245,155,0.12);border-left:4px solid #00f59b;border-radius:8px;padding:9px;margin-bottom:8px;}}
+.ita{{background:rgba(56,189,248,0.1);border-left:4px solid #38bdf8;border-radius:8px;padding:9px;margin-bottom:8px;}}
+.itr{{background:rgba(250,204,21,0.14);border-left:4px solid #facc15;border-radius:8px;padding:9px;margin-bottom:8px;}}
 .lg{{width:20px;height:20px;border-radius:50%;vertical-align:middle;margin-right:6px;}}
-.pv{{font-family:monospace;font-size:16px;font-weight:900;padding:1px 4px;border-radius:4px;}}
-.up{{background:rgba(0,245,155,0.35);color:#00f59b;}}.dn{{background:rgba(255,42,95,0.35);color:#ff5c85;}}
+.pv{{font-family:monospace;font-size:17px;font-weight:900;padding:1px 5px;border-radius:4px;display:inline-block;}}
+.up{{background:rgba(0,245,155,0.45);color:#00f59b;}}.dn{{background:rgba(255,42,95,0.45);color:#ff5c85;}}
 .hide{{display:none;}}
 </style></head><body>
 <div class="title">⚡ CYBER HUNTER AI · 量化共振終端</div>
-<div class="bar"><div class="clk">🕒 台灣：<span id="ck">--:--:--</span></div><div id="st" style="color:#00f59b;font-weight:bold;">⚡ 啟動實時報價...</div></div>
+<div class="bar"><div class="clk">🕒 台灣：<span id="ck">--:--:--</span></div><div id="st" style="color:#00f59b;font-weight:bold;">⚡ 啟動逐筆成交流...</div></div>
+<div class="mkt-panel">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px;">
+    <span style="font-size:15px;font-weight:900;color:{mkt_col};">{mkt_dir}</span>
+    <span style="font-size:12px;color:#cbd5e1;">多空家數比：<b>{bull_pct}% 漲</b> / {100-bull_pct}% 跌</span>
+  </div>
+  <div style="margin-top:6px;font-size:13px;font-weight:800;">📊 全市場綜合 RSI：<span style="color:#00f5d4;font-size:16px;">{mkt_rsi}</span> <small style="color:#94a3b8;">(&lt;30超賣 · 50中性 · &gt;70超買)</small></div>
+  <div class="rsi-track"><div class="rsi-pin" style="left:{mkt_rsi}%;"></div></div>
+</div>
 <div class="tabs">
   <div class="tab active" onclick="sw('hot',this)">🔥 熱門幣</div>
   <div class="tab" onclick="sw('rank',this)">🎯 推薦榜</div>
@@ -88,7 +108,7 @@ body{{background:#070a10;color:#e2e8f0;font-family:sans-serif;margin:0;padding:4
   <div class="tab" onclick="sw('res',this)">⚡ 共振買點</div>
   <div class="tab" onclick="sw('all',this)">🌐 全部</div>
 </div>
-<div id="p-hot"><div class="sec">🔥 熱門主流幣種（一幣一框 · 實時跳動）</div><div class="ghot" id="hc"></div></div>
+<div id="p-hot"><div class="sec">🔥 熱門主流幣種（逐筆成交毫秒跳動）</div><div class="ghot" id="hc"></div></div>
 <div id="p-res" class="hide"><div class="sec" style="color:#facc15;">⚡ 賽克斯指標 ＋ 獵手【雙重共振買點】</div><div class="rbox" id="rc"></div></div>
 <div id="p-anom" class="hide"><div class="sec" style="color:#38bdf8;">📡 數據異常（主力開倉 / 撤資判別）</div><div class="abox" id="ac"></div></div>
 <div id="p-rank" class="hide">
@@ -105,7 +125,7 @@ document.getElementById('p-res').classList.toggle('hide',t!=='res'&&t!=='all');}
 const fmt=p=>p<0.01?'$'+p.toFixed(6):(p<1?'$'+p.toFixed(5):(p<10?'$'+p.toFixed(4):'$'+p.toLocaleString('en-US',{{minimumFractionDigits:2,maximumFractionDigits:2}})));
 setInterval(()=>{{document.getElementById('ck').innerText=new Date().toLocaleTimeString('zh-TW',{{timeZone:'Asia/Taipei',hour12:false}});}},1000);
 let hh='';D.hots.forEach(c=>{{LP[c.sym]=c.price;const isS=c.s_sc>c.l_sc,bc=isS?'#ff2a5f':(c.l_sc>c.s_sc?'#00f59b':'#38bdf8'),tg=isS?`🔴偏空${{c.s_sc}}分`:(c.l_sc>c.s_sc?`🟢偏多${{c.l_sc}}分`:'⚪盤整');
-hh+=`<div class="cbox" style="border-color:${{bc}}"><img src="${{c.logo}}" class="lg" onerror="this.style.display='none'"><b>${{c.sym}}/USDT</b>｜<span style="color:${{bc}};font-weight:bold">${{tg}}</span><div style="margin:5px 0"><span class="pv p-${{c.sym}}">${{fmt(c.price)}}</span> (${{c.c24h>=0?'+':''}}${{c.c24h}}%)</div><small>🎯止盈:<b class="tph-${{c.sym}}">${{fmt(isS?c.price*0.96:c.price*1.04)}}</b>｜🛡️停損:<b class="slh-${{c.sym}}">${{fmt(isS?c.price*1.02:c.price*0.98)}}</b></small></div>`;}});
+hh+=`<div class="cbox" style="border-color:${{bc}}"><img src="${{c.logo}}" class="lg" onerror="this.style.display='none'"><b>${{c.sym}}/USDT</b>｜<span style="color:${{bc}};font-weight:bold">${{tg}}</span><div style="margin:5px 0"><span class="pv p-${{c.sym}}">${{fmt(c.price)}}</span> (${{c.c24h>=0?'+':''}}${{c.c24h}}%)</div><small>🎯止盈:<b>${{fmt(isS?c.price*0.96:c.price*1.04)}}</b>｜🛡️停損:<b>${{fmt(isS?c.price*1.02:c.price*0.98)}}</b></small></div>`;}});
 document.getElementById('hc').innerHTML=hh;
 let rh=D.res.length===0?'<div style="color:#94a3b8;padding:8px;">目前兩大指標尚未出現同向共振，請先參考推薦排行。</div>':'';
 D.res.forEach(c=>{{LP[c.sym]=c.price;const isL=c.res.includes('做多');rh+=`<div class="itr"><img src="${{c.logo}}" class="lg" onerror="this.style.display='none'"><b>${{c.sym}}/USDT</b>｜<span style="color:#facc15;font-weight:900">${{c.res}}</span><div style="margin:4px 0">現價:<span class="pv p-${{c.sym}}">${{fmt(c.price)}}</span>｜賽克斯:<b>${{c.cycs}}</b></div><small>主力:<b>${{c.oi_act}}</b><br>🎯止盈:<b>${{fmt(isL?c.price*1.04:c.price*0.96)}}</b>｜🛡️停損:<b>${{fmt(isL?c.price*0.98:c.price*1.02)}}</b></small></div>`;}});
@@ -124,4 +144,5 @@ ws.onmessage=e=>{{const m=JSON.parse(e.data);if(m.data&&m.data){{const d=m.data,
 ws.onclose=()=>setTimeout(connWS,2000);}}connWS();
 setInterval(()=>{{fetch(D.rest).then(r=>r.json()).then(j=>{{if(j.data)j.data.forEach(d=>updateTick(d.instId.replace('-USDT-SWAP',''),parseFloat(d.last)));}}).catch(()=>{{}});}},1000);
 </script></body></html>"""
-components.html(html, height=1800, scrolling=True)
+components.html(html, height=1900, scrolling=True)
+

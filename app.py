@@ -1,290 +1,146 @@
 import streamlit as st
 import requests
 import pandas as pd
-import numpy as np
 import time
 from datetime import datetime
 
-st.set_page_config(
-    page_title="CYBER HUNTER AI · 量化戰情終端",
-    page_icon="⚡",
-    layout="wide"
-)
+st.set_page_config(page_title="CYBER HUNTER AI", page_icon="⚡", layout="wide")
 
-# ================= 暗黑賽博龐克專屬視覺樣式 (CSS) =================
 st.markdown("""
 <style>
-    /* 全局深空暗黑背景 */
-    .stApp {
-        background: radial-gradient(circle at top right, #111927 0%, #070a10 60%, #030508 100%);
-        color: #e2e8f0;
-    }
-    header[data-testid="stHeader"] {
-        background: rgba(7, 10, 16, 0.85);
-        backdrop-filter: blur(10px);
-    }
-    section[data-testid="stSidebar"] {
-        background-color: #0b0f19 !important;
-        border-right: 1px solid #1e293b;
-    }
-    /* 霓虹標題 */
-    .cyber-title {
-        font-size: 2.0rem;
-        font-weight: 900;
-        background: linear-gradient(90deg, #00f5d4 0%, #00bbf9 50%, #f15bb5 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        letter-spacing: 1px;
-        margin-bottom: 0.2rem;
-    }
-    .cyber-sub {
-        color: #94a3b8;
-        font-size: 0.88rem;
-        margin-bottom: 1.2rem;
-    }
-    /* 熱門幣種：一種幣一個專屬獨立框 */
-    .single-coin-box {
-        background: linear-gradient(145deg, #111827, #0b1120);
-        border: 1px solid #38bdf8;
-        border-radius: 14px;
-        padding: 14px 16px;
-        margin-bottom: 12px;
-        box-shadow: 0 0 14px rgba(56, 189, 248, 0.15);
-    }
-    /* 做空 TOP 5 專屬大外框 */
-    .short-master-box {
-        background: rgba(25, 10, 15, 0.85);
-        border: 2px solid #ff2a5f;
-        border-radius: 18px;
-        padding: 18px 16px 8px 16px;
-        margin-bottom: 18px;
-        box-shadow: 0 0 25px rgba(255, 42, 95, 0.22);
-    }
-    .short-master-title {
-        font-size: 1.3rem;
-        font-weight: 900;
-        color: #ff4d79;
-        margin-bottom: 14px;
-        padding-bottom: 8px;
-        border-bottom: 1px solid rgba(255, 42, 95, 0.35);
-    }
-    /* 做多 TOP 5 專屬大外框 */
-    .long-master-box {
-        background: rgba(9, 24, 19, 0.85);
-        border: 2px solid #00f59b;
-        border-radius: 18px;
-        padding: 18px 16px 8px 16px;
-        margin-bottom: 18px;
-        box-shadow: 0 0 25px rgba(0, 245, 155, 0.22);
-    }
-    .long-master-title {
-        font-size: 1.3rem;
-        font-weight: 900;
-        color: #00f59b;
-        margin-bottom: 14px;
-        padding-bottom: 8px;
-        border-bottom: 1px solid rgba(0, 245, 155, 0.35);
-    }
-    /* 大外框內部的單筆排名小卡 */
-    .rank-item-short {
-        background: rgba(255, 42, 95, 0.08);
-        border-left: 4px solid #ff2a5f;
-        border-radius: 10px;
-        padding: 12px 14px;
-        margin-bottom: 12px;
-    }
-    .rank-item-long {
-        background: rgba(0, 245, 155, 0.08);
-        border-left: 4px solid #00f59b;
-        border-radius: 10px;
-        padding: 12px 14px;
-        margin-bottom: 12px;
-    }
-    .badge-short {
-        background: rgba(255, 42, 95, 0.25);
-        color: #ff7597;
-        border: 1px solid #ff2a5f;
-        padding: 2px 10px;
-        border-radius: 20px;
-        font-weight: 800;
-        font-size: 0.82rem;
-    }
-    .badge-long {
-        background: rgba(0, 245, 155, 0.2);
-        color: #00f59b;
-        border: 1px solid #00f59b;
-        padding: 2px 10px;
-        border-radius: 20px;
-        font-weight: 800;
-        font-size: 0.82rem;
-    }
+.stApp { background: linear-gradient(135deg, #070a10 0%, #111927 100%); color: #e2e8f0; }
+header[data-testid="stHeader"] { background: transparent; }
+.cyber-title { font-size: 1.9rem; font-weight: 900; color: #00f5d4; text-shadow: 0 0 12px rgba(0,245,212,0.5); }
+.coin-box { background: #0f172a; border: 1.5px solid #38bdf8; border-radius: 12px; padding: 12px; margin-bottom: 10px; box-shadow: 0 0 12px rgba(56,189,248,0.2); }
+.short-box { background: #190a0f; border: 2px solid #ff2a5f; border-radius: 16px; padding: 14px; margin-bottom: 14px; box-shadow: 0 0 20px rgba(255,42,95,0.25); }
+.long-box { background: #091813; border: 2px solid #00f59b; border-radius: 16px; padding: 14px; margin-bottom: 14px; box-shadow: 0 0 20px rgba(0,245,155,0.25); }
+.item-s { background: rgba(255,42,95,0.1); border-left: 4px solid #ff2a5f; border-radius: 8px; padding: 10px; margin-bottom: 8px; }
+.item-l { background: rgba(0,245,155,0.1); border-left: 4px solid #00f59b; border-radius: 8px; padding: 10px; margin-bottom: 8px; }
 </style>
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="cyber-title">⚡ CYBER HUNTER AI · 量化戰情終端</div>', unsafe_allow_html=True)
-st.markdown('<div class="cyber-sub">全市場實時掃描 · 熱門幣獨立單框 · 做空 / 做多雙戰情艙系統</div>', unsafe_allow_html=True)
 
 @st.cache_data(ttl=20)
-def scan_market_fast():
-    p1 = "https://api." + "coingecko.com"
-    p2 = "/api/v3/coins/markets?vs_currency=usd&order=volume_desc&per_page=60&page=1&price_change_percentage=1h,24h,7d"
-    headers = {"Accept": "application/json", "User-Agent": "Mozilla/5.0"}
-
+def get_market():
+    u = "https://api." + "://coingecko.com"
     try:
-        res = requests.get(p1 + p2, headers=headers, timeout=10)
-        if res.status_code != 200:
-            return []
-        coins = res.json()
+        r = requests.get(u, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+        coins = r.json() if r.status_code == 200 else []
     except Exception:
         return []
 
-    results = []
-    stable_coins = {"USDT", "USDC", "FDUSD", "DAI", "TUSD", "USDE", "PYUSD", "BUSD", "USDS", "WBTC", "WETH"}
-
+    rows = []
+    skip = {"USDT", "USDC", "FDUSD", "DAI", "TUSD", "USDE", "PYUSD", "BUSD", "USDS", "WBTC", "WETH"}
     for c in coins:
-        symbol = c.get("symbol", "").upper()
-        if not symbol or symbol in stable_coins:
+        sym = c.get("symbol", "").upper()
+        p = float(c.get("current_price") or 0)
+        if not sym or sym in skip or p <= 0:
             continue
-
-        price = float(c.get("current_price") or 0)
-        if price <= 0:
-            continue
-
         c1h = float(c.get("price_change_percentage_1h_in_currency") or 0)
         c24h = float(c.get("price_change_percentage_24h_in_currency") or 0)
-        vol_24h = float(c.get("total_volume") or 0)
-        mcap = float(c.get("market_cap") or 1)
-        high_24h = float(c.get("high_24h") or price)
-        low_24h = float(c.get("low_24h") or price)
+        vol = float(c.get("total_volume") or 0)
+        mc = float(c.get("market_cap") or 1)
+        hi = float(c.get("high_24h") or p)
+        lo = float(c.get("low_24h") or p)
+        turn = (vol / mc) * 100 if mc > 0 else 0
+        pos = ((p - lo) / (hi - lo) * 100) if hi > lo else 50.0
 
-        turnover = (vol_24h / mcap) * 100 if mcap > 0 else 0
-        range_pos = ((price - low_24h) / (high_24h - low_24h) * 100) if high_24h > low_24h else 50.0
+        s_sc, l_sc = 40, 40
+        s_msg, l_msg = [], []
 
-        short_score = 40
-        short_reasons = []
+        if c1h >= 2.0: s_sc += 24; s_msg.append(f"1H急漲+{c1h:.1f}%")
+        elif c1h >= 0.8: s_sc += 10; s_msg.append(f"1H偏強+{c1h:.1f}%")
+        if c1h <= -2.0: l_sc += 24; l_msg.append(f"1H急跌{c1h:.1f}%")
+        elif c1h <= -0.8: l_sc += 10; l_msg.append(f"1H回調{c1h:.1f}%")
 
-        long_score = 40
-        long_reasons = []
+        if pos >= 90: s_sc += 20; s_msg.append(f"逼近24H高點({pos:.0f}%)")
+        elif pos <= 10: l_sc += 20; l_msg.append(f"逼近24H低點({pos:.0f}%)")
 
-        if c1h >= 2.0:
-            short_score += 24
-            short_reasons.append(f"1H急漲+{c1h:.1f}%過熱")
-        elif c1h >= 0.8:
-            short_score += 10
-            short_reasons.append(f"1H偏強+{c1h:.1f}%")
+        if c24h >= 10: s_sc += 15; s_msg.append(f"日內暴漲+{c24h:.1f}%")
+        elif c24h <= -10: l_sc += 15; l_msg.append(f"日內深跌{c24h:.1f}%")
 
-        if c1h <= -2.0:
-            long_score += 24
-            long_reasons.append(f"1H急跌{c1h:.1f}%超賣")
-        elif c1h <= -0.8:
-            long_score += 10
-            long_reasons.append(f"1H回調{c1h:.1f}%")
+        if turn >= 25:
+            if s_sc > l_sc: s_sc += 10; s_msg.append(f"高換手{turn:.0f}%")
+            elif l_sc > s_sc: l_sc += 10; l_msg.append(f"高換手{turn:.0f}%")
 
-        if range_pos >= 90:
-            short_score += 20
-            short_reasons.append(f"逼近24H頂部({range_pos:.0f}%)")
-        elif range_pos <= 10:
-            long_score += 20
-            long_reasons.append(f"逼近24H底部({range_pos:.0f}%)")
-
-        if c24h >= 10:
-            short_score += 15
-            short_reasons.append(f"日內暴漲+{c24h:.1f}%防回調")
-        elif c24h <= -10:
-            long_score += 15
-            long_reasons.append(f"日內深跌{c24h:.1f}%博反彈")
-
-        if turnover >= 25:
-            if short_score > long_score:
-                short_score += 10
-                short_reasons.append(f"高換手({turnover:.0f}%)")
-            elif long_score > short_score:
-                long_score += 10
-                long_reasons.append(f"高換手({turnover:.0f}%)")
-
-        bias = "做空優勢" if short_score > long_score else ("做多優勢" if long_score > short_score else "中性盤整")
-
-        results.append({
-            "幣種": symbol,
-            "現價": price,
-            "1H漲跌": round(c1h, 2),
-            "24H漲跌": round(c24h, 2),
-            "日內位置(%)": round(range_pos, 1),
-            "換手率(%)": round(turnover, 1),
-            "做空評分": min(short_score, 99),
-            "做空依據": " + ".join(short_reasons) if short_reasons else "動能中性觀望",
-            "做多評分": min(long_score, 99),
-            "做多依據": " + ".join(long_reasons) if long_reasons else "動能中性觀望",
-            "AI方向": bias
+        rows.append({
+            "幣種": sym, "現價": p, "1H": round(c1h, 2), "24H": round(c24h, 2),
+            "位置": round(pos, 1), "換手": round(turn, 1),
+            "空分": min(s_sc, 99), "空因": " + ".join(s_msg) if s_msg else "動能中性",
+            "多分": min(l_sc, 99), "多因": " + ".join(l_msg) if l_msg else "動能中性"
         })
-
-    return results
+    return rows
 
 with st.sidebar:
-    st.header("⚙️ 戰情終端控制")
-    auto_refresh = st.toggle("🟢 開啟全自動即時跳動", value=True)
-    refresh_sec = st.slider("自動刷新間隔 (秒)", 20, 120, 30, 5)
-    stop_loss_pct = st.slider("建議停損幅度 (%)", 1.0, 5.0, 2.0, 0.5)
-    take_profit_pct = st.slider("建議止盈幅度 (%)", 2.0, 15.0, 4.0, 0.5)
-    if st.button("🔄 立即手動刷新"):
+    st.header("⚙️ 戰情控制")
+    auto_ref = st.toggle("🟢 全自動即時跳動", value=True)
+    sec = st.slider("刷新秒數", 20, 120, 30, 5)
+    sl_p = st.slider("停損 (%)", 1.0, 5.0, 2.0, 0.5)
+    tp_p = st.slider("止盈 (%)", 2.0, 15.0, 4.0, 0.5)
+    if st.button("🔄 立即刷新"):
         st.cache_data.clear()
         st.rerun()
-    st.divider()
-    st.info("🛡️ **合約風控守則**：\n• 務必開啟「逐倉模式」\n• 下單同步設定止盈止損\n• 評分 ≥ 75 分再考慮進場")
 
-with st.spinner("⚡ 正在連線全球節點掃描最新資金流向..."):
-    market_data = scan_market_fast()
-
-if not market_data:
-    st.error("行情介面忙碌中，請稍候 10 秒自動重試，或點擊左上角選單「立即手動刷新」。")
+data = get_market()
+if not data:
+    st.error("行情連線中，請稍候自動刷新...")
 else:
-    df = pd.DataFrame(market_data)
-    now_str = datetime.now().strftime("%H:%M:%S")
-    st.caption(f"🟢 系統連線正常 · 最後更新：`{now_str}`（每 `{refresh_sec}` 秒自動跳動）· 已掃描 `{len(df)}` 檔合約標的")
+    df = pd.DataFrame(data)
+    st.caption(f"🟢 實時連線中 · 更新：`{datetime.now().strftime('%H:%M:%S')}`（每 {sec} 秒跳動）")
 
-    # ================= 區塊 1：熱門主流幣種（一種幣一個獨立框） =================
-    st.markdown("### 🔥 熱門主流幣種獨立戰情（一幣一框）")
-    hot_list = ["BTC", "ETH", "SOL", "XRP", "DOGE", "SUI"]
-    hot_df = df[df["幣種"].isin(hot_list)].copy()
-    hot_df["order"] = hot_df["幣種"].apply(lambda x: hot_list.index(x) if x in hot_list else 99)
-    hot_df = hot_df.sort_values("order")
+    st.markdown("### 🔥 熱門主流幣種（一幣一框）")
+    hots = ["BTC", "ETH", "SOL", "XRP", "DOGE", "SUI"]
+    hdf = df[df["幣種"].isin(hots)].copy()
+    hdf["ord"] = hdf["幣種"].apply(lambda x: hots.index(x) if x in hots else 99)
+    hdf = hdf.sort_values("ord")
 
-    hot_cols = st.columns(3)
-    for i, (_, row) in enumerate(hot_df.iterrows()):
-        with hot_cols[i % 3]:
-            price = row["現價"]
-            fmt = f"${price:,.4f}" if price < 10 else f"${price:,.2f}"
-            c24 = row["24H漲跌"]
-            c24_color = "#00f59b" if c24 >= 0 else "#ff2a5f"
-            is_short = row["做空評分"] > row["做多評分"]
-            is_long = row["做多評分"] > row["做空評分"]
+    cols = st.columns(3)
+    for i, (_, r) in enumerate(hdf.iterrows()):
+        with cols[i % 3]:
+            p = r["現價"]
+            fmt = f"${p:,.4f}" if p < 10 else f"${p:,.2f}"
+            is_s = r["空分"] > r["多分"]
+            bc = "#ff2a5f" if is_s else ("#00f59b" if r["多分"] > r["空分"] else "#38bdf8")
+            tag = f"🔴 偏空 {r['空分']}分" if is_s else (f"🟢 偏多 {r['多分']}分" if r["多分"] > r["空分"] else "⚪ 盤整")
+            tp = p * (1 - tp_p/100) if is_s else p * (1 + tp_p/100)
+            sl = p * (1 + sl_p/100) if is_s else p * (1 - sl_p/100)
+            tpf = f"${tp:,.4f}" if p < 10 else f"${tp:,.2f}"
+            slf = f"${sl:,.4f}" if p < 10 else f"${sl:,.2f}"
+            st.markdown(f'<div class="coin-box" style="border-color:{bc};"><b>💎 {r["幣種"]}/USDT</b> ｜ <span style="color:{bc};font-weight:bold;">{tag}</span><br><span style="font-size:1.15rem;font-weight:900;">{fmt}</span> ({r["24H"]:+.2f}%)<br><small>🎯 止盈: {tpf} ｜ 🛡️ 停損: {slf}</small></div>', unsafe_allow_html=True)
 
-            if is_short:
-                dir_tag = f"🔴 偏空 {row['做空評分']}分"
-                tp = price * (1 - take_profit_pct / 100)
-                sl = price * (1 + stop_loss_pct / 100)
-                border_color = "#ff2a5f"
-            elif is_long:
-                dir_tag = f"🟢 偏多 {row['做多評分']}分"
-                tp = price * (1 + take_profit_pct / 100)
-                sl = price * (1 - stop_loss_pct / 100)
-                border_color = "#00f59b"
-            else:
-                dir_tag = "⚪ 盤整觀望"
-                tp = price * (1 + take_profit_pct / 100)
-                sl = price * (1 - stop_loss_pct / 100)
-                border_color = "#38bdf8"
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("### 🔴 AI 最佳【做空】TOP 5")
+        st_df = df[df["空分"] >= df["多分"]].sort_values("空分", ascending=False).head(5)
+        html_s = '<div class="short-box">'
+        for idx, (_, r) in enumerate(st_df.iterrows(), 1):
+            p = r["現價"]
+            fmt = f"${p:,.4f}" if p < 10 else f"${p:,.2f}"
+            tpf = f"${p*(1-tp_p/100):,.4f}" if p < 10 else f"${p*(1-tp_p/100):,.2f}"
+            slf = f"${p*(1+sl_p/100):,.4f}" if p < 10 else f"${p*(1+sl_p/100):,.2f}"
+            html_s += f'<div class="item-s"><b>#{idx} 📉 {r["幣種"]}/USDT</b> ｜ <span style="color:#ff5c85;font-weight:bold;">勝率 {r["空分"]} 分</span><br>進場: <b>{fmt}</b> (1H: {r["1H"]:+.2f}% / 24H: {r["24H"]:+.2f}%)<br>🎯 止盈: <b>{tpf}</b> ｜ 🛡️ 停損: <b>{slf}</b><br><small style="color:#94a3b8;">🔍 {r["空因"]}</small></div>'
+        html_s += '</div>'
+        st.markdown(html_s, unsafe_allow_html=True)
 
-            tp_fmt = f"${tp:,.4f}" if price < 10 else f"${tp:,.2f}"
-            sl_fmt = f"${sl:,.4f}" if price < 10 else f"${sl:,.2f}"
+    with c2:
+        st.markdown("### 🟢 AI 最佳【做多】TOP 5")
+        lg_df = df[df["多分"] > df["空分"]].sort_values("多分", ascending=False).head(5)
+        html_l = '<div class="long-box">'
+        for idx, (_, r) in enumerate(lg_df.iterrows(), 1):
+            p = r["現價"]
+            fmt = f"${p:,.4f}" if p < 10 else f"${p:,.2f}"
+            tpf = f"${p*(1+tp_p/100):,.4f}" if p < 10 else f"${p*(1+tp_p/100):,.2f}"
+            slf = f"${p*(1-sl_p/100):,.4f}" if p < 10 else f"${p*(1-sl_p/100):,.2f}"
+            html_l += f'<div class="item-l"><b>#{idx} 📈 {r["幣種"]}/USDT</b> ｜ <span style="color:#00f59b;font-weight:bold;">勝率 {r["多分"]} 分</span><br>進場: <b>{fmt}</b> (1H: {r["1H"]:+.2f}% / 24H: {r["24H"]:+.2f}%)<br>🎯 止盈: <b>{tpf}</b> ｜ 🛡️ 停損: <b>{slf}</b><br><small style="color:#94a3b8;">🔍 {r["多因"]}</small></div>'
+        html_l += '</div>'
+        st.markdown(html_l, unsafe_allow_html=True)
 
-            st.markdown(f"""
-            <div class="single-coin-box" style="border-color:{border_color};">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span style="font-size:1.15rem; font-weight:900; color:#ffffff;">💎 {row['幣種']}/USDT</span>
-                    <span style="font-size:0.85rem; font-weight:800; color:#e2e8f0;">{dir_tag}</span>
-                </div>
-                <div style="margin:6px 0;">
-                    <span style="font-family:monospace; font-size:1.2rem; font-weight:900; color:#f8fafc;">{fmt}</span>
-                    <span style="color:{c24_color}; font-weight:700; margin-left:6px;">({c24:+.2f}%)</span>
-                </div>
+    st.divider()
+    st.markdown("### 📊 全市場 60 大合約即時總表")
+    st.dataframe(df[["幣種", "現價", "1H", "24H", "位置", "換手", "空分", "多分"]], use_container_width=True, hide_index=True)
+
+if auto_ref:
+    time.sleep(sec)
+    st.cache_data.clear()
+    st.rerun()

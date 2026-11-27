@@ -5,61 +5,47 @@ import requests, json
 st.set_page_config(page_title="CYBER HUNTER AI v8.0", page_icon="👑", layout="wide")
 st.markdown("<style>.stApp{background:#060608;color:#f3e8d2;}header[data-testid='stHeader'],section[data-testid='stSidebar']{display:none!important;}.block-container{padding-top:0.4rem;padding-left:0.4rem;padding-right:0.4rem;}</style>", unsafe_allow_html=True)
 
-@st.cache_data(ttl=25)
+@st.cache_data(ttl=30)
 def get_data():
     rows = []
-    skip = {"USDCUSDT","FDUSDUSDT","TUSDUSDT","USDEUSDT","EURUSDT"}
-    # 直連全球合約即時行情與真實資金費率雙接口（零延遲、無美國IP封鎖）
-    u_tk = "".join(["ht","tps://","fapi.","bi","nance",".","com/fapi/v1/ticker/24hr"])
-    u_fr = "".join(["ht","tps://","fapi.","bi","nance",".","com/fapi/v1/premiumIndex"])
+    skip = {"USDT","USDC","FDUSD","DAI","TUSD","USDE","PYUSD","BUSD","USDS","WBTC","WETH","WBNB","STETH","WSTETH","WEETH","CBETH","BETH"}
+    u1 = "".join(["ht","tps://","min-api.","crypto","compare",".","com/data/top/totalvolfull?limit=80&tsym=USDT"])
     lp = "".join(["ht","tps://","assets.","coin","cap",".","io/assets/icons/"])
     try:
-        fr_map = {}
-        r_fr = requests.get(u_fr, timeout=6)
-        if r_fr.status_code == 200:
-            for f in r_fr.json():
-                fr_map[f["symbol"]] = float(f.get("lastFundingRate") or 0) * 100
-
-        r_tk = requests.get(u_tk, timeout=8)
-        if r_tk.status_code == 200:
-            tks = [x for x in r_tk.json() if x["symbol"].endswith("USDT") and x["symbol"] not in skip and float(x.get("quoteVolume") or 0) > 15000000]
-            tks.sort(key=lambda x: float(x.get("quoteVolume") or 0), reverse=True)
-            for c in tks[:75]:
-                raw_sym = c["symbol"]
-                sym = raw_sym.replace("USDT", "")
-                if sym.startswith("1000"): sym = sym[4:]
-                p = float(c.get("lastPrice") or 0)
-                if p <= 0: continue
-                c24h = float(c.get("priceChangePercent") or 0)
-                hi, lo = float(c.get("highPrice") or p), float(c.get("lowPrice") or p)
+        r = requests.get(u1, headers={"User-Agent":"Mozilla/5.0"}, timeout=10)
+        if r.status_code == 200:
+            for item in r.json().get("Data", []):
+                sym = item.get("CoinInfo", {}).get("Name", "").upper()
+                raw = item.get("RAW", {}).get("USDT", {})
+                p = float(raw.get("PRICE") or 0)
+                if not sym or sym in skip or p <= 0: continue
+                c1h = float(raw.get("CHANGEPCTHOUR") or 0)
+                c24h = float(raw.get("CHANGEPCT24HOUR") or 0)
+                hi = float(raw.get("HIGH24HOUR") or p)
+                lo = float(raw.get("LOW24HOUR") or p)
+                vol = float(raw.get("TOTALVOLUME24HTO") or 0)
+                mc = float(raw.get("MKTCAP") or 1)
+                turn = (vol / mc) * 100 if mc > 0 else 0
                 pos = ((p - lo) / (hi - lo) * 100) if hi > lo else 50.0
-                fr = round(fr_map.get(raw_sym, 0.01), 4)
-                vol_m = round(float(c.get("quoteVolume") or 0) / 1000000, 1)
-
-                # 真實資金費率 ＋ 區間動能判別主力開倉/撤資
-                if c24h > 2.5 and fr > 0.015: oi_act, oi_dir = "🟢 多頭主力強勢加倉", "LONG"
-                elif c24h < -2.5 and fr < -0.01: oi_act, oi_dir = "🔴 空頭主力放量砸盤", "SHORT"
-                elif pos > 85 and fr >= 0.03: oi_act, oi_dir = "🟡 多軍擁擠提防獲利撤資", "SHORT"
-                elif pos < 15 and fr <= -0.02: oi_act, oi_dir = "🟣 空軍擁擠易觸發軋空", "LONG"
-                else: oi_act, oi_dir = "⚪ 多空籌碼均衡換手", "NEUTRAL"
-
-                # 賽克斯動能指標 (-100 ~ +100)
-                cycs = round(max(min((50 - pos) * 1.4 - (fr * 400), 99), -99), 1)
+                if c1h > 0.5 and turn >= 15: oi_act, oi_dir = "🟢 主力強勢開多 (資金湧入)", "LONG"
+                elif c1h < -0.5 and turn >= 15: oi_act, oi_dir = "🔴 主力放量開空 (空單增倉)", "SHORT"
+                elif c1h < -0.4 and c24h > 4: oi_act, oi_dir = "🟡 多頭獲利撤資 (平多減倉)", "SHORT"
+                elif c1h > 0.4 and c24h < -4: oi_act, oi_dir = "🟣 空頭回補撤資 (平空減倉)", "LONG"
+                else: oi_act, oi_dir = "⚪ 資金溫和換手", "NEUTRAL"
+                cycs = round(max(min((c1h * 18) + ((50 - pos) * 0.8), 99), -99), 1)
                 csig = "LONG" if cycs >= 25 else ("SHORT" if cycs <= -25 else "NEUTRAL")
                 res = "🔥 雙指標【共振做多】買點" if (oi_dir=="LONG" and csig=="LONG") else ("🔥 雙指標【共振做空】賣點" if (oi_dir=="SHORT" and csig=="SHORT") else "")
-
                 s_sc, l_sc, s_m, l_m = 40, 40, [], []
-                if pos >= 82: s_sc += 22; s_m.append(f"逼近24H高點({pos:.0f}%)")
-                if pos <= 18: l_sc += 22; l_m.append(f"逼近24H低點({pos:.0f}%)")
-                if fr >= 0.025: s_sc += 18; s_m.append(f"高正費率+{fr}%")
-                if fr <= -0.015: l_sc += 18; l_m.append(f"負費率{fr}%")
-                if c24h >= 8: s_sc += 12; s_m.append(f"日內急漲+{c24h:.1f}%")
-                if c24h <= -8: l_sc += 12; l_m.append(f"日內深跌{c24h:.1f}%")
+                if c1h >= 1.2: s_sc += 22; s_m.append(f"1H急漲+{c1h:.1f}%")
+                if c1h <= -1.2: l_sc += 22; l_m.append(f"1H急跌{c1h:.1f}%")
+                if pos >= 85: s_sc += 18; s_m.append(f"高位乖離({pos:.0f}%)")
+                if pos <= 15: l_sc += 18; l_m.append(f"低位超賣({pos:.0f}%)")
+                if oi_dir == "SHORT": s_sc += 18; s_m.append(oi_act)
+                if oi_dir == "LONG": l_sc += 18; l_m.append(oi_act)
                 if res:
                     if "空" in res: s_sc += 15; s_m.append("賽克斯共振")
                     if "多" in res: l_sc += 15; l_m.append("賽克斯共振")
-
-                rows.append({"sym":sym,"price":p,"c24h":round(c24h,2),"fr":fr,"vol":vol_m,"logo":f"{lp}{sym.lower()}@2x.png","oi_act":oi_act,"oi_dir":oi_dir,"cycs":cycs,"res":res,"s_sc":min(s_sc,99),"s_msg":" + ".join(s_m) or "動能中性","l_sc":min(l_sc,99),"l_msg":" + ".join(l_m) or "動能中性"})
+                rows.append({"sym":sym,"price":p,"c1h":round(c1h,2),"c24h":round(c24h,2),"turn":round(turn,1),"logo":f"{lp}{sym.lower()}@2x.png","oi_act":oi_act,"oi_dir":oi_dir,"cycs":cycs,"res":res,"s_sc":min(s_sc,99),"s_msg":" + ".join(s_m) or "動能中性","l_sc":min(l_sc,99),"l_msg":" + ".join(l_m) or "動能中性"})
     except Exception: pass
     return rows
 data = get_data()

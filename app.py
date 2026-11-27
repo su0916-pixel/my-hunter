@@ -171,17 +171,35 @@ function updateTick(s,np){{const op=LP[s];if(!op||np===op)return;LP[s]=np;const 
 function connWS(){{const ws=new WebSocket(D.ws);ws.onopen=()=>{{document.getElementById('st').innerText='⚡ OKX 逐筆成交狂跳中';D.syms.forEach(s=>ws.send(JSON.stringify({{op:'subscribe',args:[{{channel:'trades',instId:s+'-USDT-SWAP'}},{{channel:'bbo-tbt',instId:s+'-USDT-SWAP'}}]}})));}};ws.onmessage=e=>{{const m=JSON.parse(e.data);if(m.data&&m.data){{const d=m.data,s=d.instId.replace('-USDT-SWAP',''),p=parseFloat(d.px||d.bidPx||d.last);if(p>0)updateTick(s,p);}}}};ws.onclose=()=>setTimeout(connWS,2000);}}
 renderBoards();
 const wUrl=["w","ss://","ws.","okx",".","com:8443/ws/v5/public"].join("");
+function updateTick(s,np){{
+  const op=LP[s];
+  if(op===np)return;
+  LP[s]=np;
+  const cl=(op&&np<op)?'dn':'up';
+  document.querySelectorAll('.p-'+s).forEach(el=>{{
+    el.innerText=fmt(np);
+    el.classList.remove('up','dn');
+    void el.offsetWidth;
+    el.classList.add(cl);
+    setTimeout(()=>el.classList.remove('up','dn'),400);
+  }});
+}}
+renderBoards();
+const wUrl=["w","ss://","ws.","okx",".","com:8443/ws/v5/public"].join("");
 function startLive(){{
   try{{
     const ws=new WebSocket(wUrl);
     ws.onopen=()=>{{
-      document.getElementById('st').innerText='⚡ OKX 逐筆成交狂跳中';
-      const args=[];
-      D.syms.slice(0,25).forEach(s=>{{
-        args.push({{channel:'trades',instId:s+'-USDT-SWAP'}});
-        args.push({{channel:'tickers',instId:s+'-USDT-SWAP'}});
+      document.getElementById('st').innerText='⚡ OKX 全市場毫秒狂跳中';
+      const priority=["BTC","ETH","SOL","XRP","DOGE","SUI"];
+      const targets=[...new Set([...priority,...D.shorts.map(x=>x.sym),...D.longs.map(x=>x.sym),...D.anom.map(x=>x.sym)])];
+      targets.forEach((s,idx)=>{{
+        setTimeout(()=>{{
+          if(ws.readyState===1){{
+            ws.send(JSON.stringify({{op:'subscribe',args:[{{channel:'trades',instId:s+'-USDT-SWAP'}},{{channel:'tickers',instId:s+'-USDT-SWAP'}}]}}));
+          }}
+        }},idx*40);
       }});
-      ws.send(JSON.stringify({{op:'subscribe',args:args}}));
     }};
     ws.onmessage=e=>{{
       const m=JSON.parse(e.data);

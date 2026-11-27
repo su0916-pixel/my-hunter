@@ -199,71 +199,75 @@ function renderBoards(){{
   lh+=`<div class="itl"><a href="${{D.app}}${{c.sym.toLowerCase()}}-usdt-swap" target="_blank" class="okx-btn">⚡ OKX開單</a><b>#${{i+1}}</b> <img src="${{c.logo}}" class="lg" onerror="this.style.display='none'"><b>${{c.sym}}/USDT</b>｜<span style="color:#00f59b;font-weight:bold">勝率${{c.l_sc}}分</span><div style="margin:4px 0">現價:<span class="pv p-${{c.sym}}">${{fmt(lv.p)}}</span> (${{lv.c24>=0?'+':''}}${{lv.c24.toFixed(2)}}%)</div><small>🎯止盈:<b class="tp-${{c.sym}}">${{fmt(lv.p*1.04)}}</b>｜🛡️停損:<b class="sl-${{c.sym}}">${{fmt(lv.p*0.98)}}</b><br>🔍${{c.l_msg}}</small></div>`;}});
   document.getElementById('lc').innerHTML=lh;
 }}
-async function syncOKXReal(){{
+async function refreshAll(btn){{
+  btn.innerText='⏳ 同步中...';
   try{{
-    const r=await fetch(D.rest),j=await r.json();
-    if(!j.data)return;
-    let up=0,tot=0,sumPct=0,okxList=[];
-    const lp="https://assets."+"coincap.io/assets/icons/";
-    j.data.forEach(d=>{{
-      if(!d.instId.endsWith('-USDT-SWAP'))return;
-      const s=d.instId.replace('-USDT-SWAP',''),last=parseFloat(d.last),op24=parseFloat(d.open24h),hi=parseFloat(d.high24h)||last,lo=parseFloat(d.low24h)||last,vol=parseFloat(d.volCcy24h)*last;
-      const c24=op24>0?((last-op24)/op24)*100:0;
-      const pos=hi>lo?((last-lo)/(hi-lo))*100:50;
-      okxMap[s]={{p:last,c24:c24}};
-      if(!SPARK[s])SPARK[s]=[op24,op24+(last-op24)*0.3,op24+(last-op24)*0.6,op24+(last-op24)*0.4,op24+(last-op24)*0.8,last];
-      if(tot<80){{tot++;if(c24>0)up++;sumPct+=c24;}}
-      let s_sc=40,l_sc=40,sm=[],lm=[],oi_act="⚪ 資金溫和換手",oi_dir="NEUTRAL";
-      if(c24>6&&vol>5000000){{oi_act="🟢 主力強勢開多 (資金湧入)";oi_dir="LONG";l_sc+=20;lm.push("主力開多");}}
-      else if(c24<-6&&vol>5000000){{oi_act="🔴 主力放量開空 (空單增倉)";oi_dir="SHORT";s_sc+=20;sm.push("主力開空");}}
-      if(pos>=88){{s_sc+=22;sm.push(`逼近高點(${{pos.toFixed(0)}}%)`);}}
-      if(pos<=12){{l_sc+=22;lm.push(`逼近低點(${{pos.toFixed(0)}}%)`);}}
-      if(c24>=12){{s_sc+=18;sm.push(`暴漲+${{c24.toFixed(1)}}%`);}}
-      if(c24<=-12){{l_sc+=18;lm.push(`深跌${{c24.toFixed(1)}}%`);}}
-      const cycs=Math.round(Math.max(Math.min((c24*2.5)+((50-pos)*0.6),99),-99)*10)/10;
-      const res=(oi_dir==="LONG"&&cycs>=20)?"🔥 雙指標【共振做多】買點":((oi_dir==="SHORT"&&cycs<=-20)?"🔥 雙指標【共振做空】賣點":"");
-      if(res.includes("多"))l_sc+=15;if(res.includes("空"))s_sc+=15;
-      okxList.push({{sym:s,price:last,c24h:c24,turn:Math.round(vol/1000000),logo:`${{lp}}${{s.toLowerCase()}}@2x.png`,oi_act:oi_act,oi_dir:oi_dir,cycs:cycs,res:res,s_sc:Math.min(s_sc,99),s_msg:sm.join(" + ")||"動能中性",l_sc:Math.min(l_sc,99),l_msg:lm.join(" + ")||"動能中性",vol:vol}});
-    }});
-    if(D.all.length===0){{
-      D.all=okxList;
+    const u="https://api."+"://coingecko.com";
+    const r=await fetch(u),arr=await r.json();
+    if(Array.isArray(arr)&&arr.length>10){{
+      const skip=new Set(["USDT","USDC","FDUSD","DAI","TUSD","USDE","PYUSD","BUSD","USDS","WBTC","WETH","WBNB","STETH"]);
+      const lp="https://assets."+"coincap.io/assets/icons/";
+      let list=[],up=0,tot=0,sum1h=0;
+      arr.forEach(c=>{{
+        const s=(c.symbol||"").toUpperCase(),p=parseFloat(c.current_price||0);
+        if(!s||skip.has(s)||p<=0)return;
+        const c1h=parseFloat(c.price_change_percentage_1h_in_currency||0);
+        const c24=parseFloat(c.price_change_percentage_24h_in_currency||0);
+        const hi=parseFloat(c.high_24h||p),lo=parseFloat(c.low_24h||p);
+        const turn=(parseFloat(c.total_volume||0)/parseFloat(c.market_cap||1))*100;
+        const pos=hi>lo?((p-lo)/(hi-lo))*100:50;
+        okxMap[s]={{p:p,c24:c24}};
+        if(tot<80){{tot++;if(c1h>0)up++;sum1h+=c1h;}}
+        let s_sc=40,l_sc=40,sm=[],lm=[],oi_act="⚪ 資金溫和換手",oi_dir="NEUTRAL";
+        if(c1h>0.5&&turn>=15){{oi_act="🟢 主力強勢開多 (資金湧入)";oi_dir="LONG";l_sc+=20;lm.push("主力開多");}}
+        else if(c1h<-0.5&&turn>=15){{oi_act="🔴 主力放量開空 (空單增倉)";oi_dir="SHORT";s_sc+=20;sm.push("主力開空");}}
+        if(pos>=88){{s_sc+=22;sm.push(`逼近高點(${{pos.toFixed(0)}}%)`);}}
+        if(pos<=12){{l_sc+=22;lm.push(`逼近低點(${{pos.toFixed(0)}}%)`);}}
+        if(c24>=10){{s_sc+=18;sm.push(`暴漲+${{c24.toFixed(1)}}%`);}}
+        if(c24<=-10){{l_sc+=18;lm.push(`深跌${{c24.toFixed(1)}}%`);}}
+        const cycs=Math.round(Math.max(Math.min((c1h*18)+((50-pos)*0.8),99),-99)*10)/10;
+        const res=(oi_dir==="LONG"&&cycs>=20)?"🔥 雙指標【共振做多】買點":((oi_dir==="SHORT"&&cycs<=-20)?"🔥 雙指標【共振做空】賣點":"");
+        if(res.includes("多"))l_sc+=15;if(res.includes("空"))s_sc+=15;
+        list.push({{sym:s,price:p,c24h:c24,turn:Math.round(turn*10)/10,logo:`${{lp}}${{s.toLowerCase()}}@2x.png`,oi_act:oi_act,oi_dir:oi_dir,cycs:cycs,res:res,s_sc:Math.min(s_sc,99),s_msg:sm.join(" + ")||"動能中性",l_sc:Math.min(l_sc,99),l_msg:lm.join(" + ")||"動能中性"}});
+      }});
+      D.all=list;
       const ho=["BTC","ETH","SOL","XRP","DOGE","SUI"];
-      D.hots=ho.map(k=>okxList.find(x=>x.sym===k)).filter(Boolean);
-      const topVol=[...okxList].sort((a,b)=>b.vol-a.vol).slice(0,50);
-      D.shorts=topVol.filter(x=>x.s_sc>=x.l_sc).sort((a,b)=>b.s_sc-a.s_sc).slice(0,5);
-      D.longs=topVol.filter(x=>x.l_sc>x.s_sc).sort((a,b)=>b.l_sc-a.l_sc).slice(0,5);
-      D.anom=topVol.filter(x=>x.oi_dir!=="NEUTRAL").slice(0,8);
-      D.res=topVol.filter(x=>x.res!=="").slice(0,8);
-      D.syms=[...new Set([...ho,...D.shorts.map(x=>x.sym),...D.longs.map(x=>x.sym)])];
+      D.hots=ho.map(k=>list.find(x=>x.sym===k)).filter(Boolean);
+      D.shorts=list.filter(x=>x.s_sc>=x.l_sc).sort((a,b)=>b.s_sc-a.s_sc).slice(0,5);
+      D.longs=list.filter(x=>x.l_sc>x.s_sc).sort((a,b)=>b.l_sc-a.l_sc).slice(0,5);
+      D.anom=list.filter(x=>x.oi_dir!=="NEUTRAL").sort((a,b)=>b.turn-a.turn).slice(0,8);
+      D.res=list.filter(x=>x.res!=="").slice(0,8);
+      const bp=tot>0?Math.round((up/tot)*100):50,avg1=tot>0?(sum1h/tot):0;
+      const rsi=Math.min(Math.max(50+avg1*8+(bp-50)*0.4,5),95).toFixed(1);
+      const fng=Math.min(Math.max(Math.round(bp*0.6+parseFloat(rsi)*0.4),4),98);
+      document.getElementById('m-rsi').innerText=rsi;document.getElementById('m-pin').style.left=rsi+'%';
+      document.getElementById('m-fng').innerHTML=`😱 恐懼貪婪：<b>${{fng}}</b> ｜ 漲跌比：<b>${{bp}}%</b>/${{100-bp}}%`;
+      const md=document.getElementById('m-dir');
+      if(rsi>=58&&bp>=55){{md.innerText='🟢 整體市場：強勢看多 (BULLISH)';md.style.color='#00f59b';}}
+      else if(rsi<=42&&bp<=45){{md.innerText='🔴 整體市場：明顯看空 (BEARISH)';md.style.color='#ff3b6b';}}
+      else{{md.innerText='👑 整體市場：黑金震盪盤平 (NEUTRAL)';md.style.color='#fbbf24';}}
+      renderBoards();
+      btn.innerText='✅ 已同步最新';
+      setTimeout(()=>btn.innerText='🔄 刷新AI',1500);
+      return;
     }}
-    const bp=tot>0?Math.round((up/tot)*100):50,avgP=tot>0?(sumPct/tot):0;
-    const rsi=Math.min(Math.max(50+avgP*3+(bp-50)*0.4,5),95).toFixed(1);
-    const fng=Math.min(Math.max(Math.round(bp*0.6+parseFloat(rsi)*0.4),4),98);
-    document.getElementById('m-rsi').innerText=rsi;document.getElementById('m-pin').style.left=rsi+'%';
-    document.getElementById('m-fng').innerHTML=`😱 恐懼貪婪：<b>${{fng}}</b> ｜ 漲跌比：<b>${{bp}}%</b>/${{100-bp}}%`;
-    const md=document.getElementById('m-dir');
-    if(rsi>=58&&bp>=55){{md.innerText='🟢 OKX 真實市場：強勢看多 (BULLISH)';md.style.color='#00f59b';}}
-    else if(rsi<=42&&bp<=45){{md.innerText='🔴 OKX 真實市場：明顯看空 (BEARISH)';md.style.color='#ff3b6b';}}
-    else{{md.innerText='👑 OKX 真實市場：黑金震盪盤平 (NEUTRAL)';md.style.color='#fbbf24';}}
-    renderBoards();
-  }}catch(e){{renderBoards();}}
+  }}catch(e){{}}
+  window.parent.location.reload();
 }}
 
 function updateTick(s,np){{
   const op=LP[s];if(!op||np===op)return;LP[s]=np;
-  if(SPARK[s]){{SPARK[s].push(np);if(SPARK[s].length>12)SPARK[s].shift();}}
   const cl=np>op?'up':'dn';
   document.querySelectorAll('.p-'+s).forEach(el=>{{el.innerText=fmt(np);el.classList.remove('up','dn');void el.offsetWidth;el.classList.add(cl);setTimeout(()=>el.classList.remove('up','dn'),400);}});
 }}
 
 function connWS(){{
   const ws=new WebSocket(D.ws);
-  ws.onopen=()=>{{document.getElementById('st').innerText='⚡ OKX 真實盤口毫秒狂跳中';D.syms.forEach(s=>ws.send(JSON.stringify({{op:'subscribe',args:[{{channel:'trades',instId:s+'-USDT-SWAP'}},{{channel:'bbo-tbt',instId:s+'-USDT-SWAP'}}]}})));}};
+  ws.onopen=()=>{{document.getElementById('st').innerText='⚡ OKX 逐筆成交狂跳中';D.syms.forEach(s=>ws.send(JSON.stringify({{op:'subscribe',args:[{{channel:'trades',instId:s+'-USDT-SWAP'}},{{channel:'bbo-tbt',instId:s+'-USDT-SWAP'}}]}})));}};
   ws.onmessage=e=>{{const m=JSON.parse(e.data);if(m.data&&m.data){{const d=m.data,s=d.instId.replace('-USDT-SWAP',''),p=parseFloat(d.px||d.bidPx||d.last);if(p>0)updateTick(s,p);}}}};
   ws.onclose=()=>setTimeout(connWS,2000);
 }}
 
-syncOKXReal().then(()=>{{connWS();setInterval(()=>{{fetch(D.rest).then(r=>r.json()).then(j=>{{if(j.data)j.data.forEach(d=>updateTick(d.instId.replace('-USDT-SWAP',''),parseFloat(d.last)));}}).catch(()=>{{}});}},1000);}});
+refreshAll(document.querySelectorAll('.snd-btn')).then(()=>connWS());
 </script></body></html>"""
 components.html(html, height=2200, scrolling=True)
-

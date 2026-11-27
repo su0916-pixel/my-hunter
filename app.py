@@ -46,6 +46,12 @@ def get_data():
                     if "多" in res: l_sc += 15; l_m.append("賽克斯共振")
                 rows.append({"sym":sym,"price":p,"c1h":c1h,"c24h":round(c24h,2),"turn":turn,"logo":f"{lp}{sym.lower()}@2x.png","oi_act":oi_act,"oi_dir":oi_dir,"cycs":cycs,"res":res,"s_sc":min(s_sc,99),"s_msg":" + ".join(s_m) or "動能中性","l_sc":min(l_sc,99),"l_msg":" + ".join(l_m) or "動能中性"})
     except Exception: pass
+    try:
+        r0 = requests.get("".join(["ht","tps://","www.","okx",".","com/api/v5/public/instruments?instType=SWAP"]), timeout=6)
+        if r0.status_code == 200:
+            okx_s = {x.get("ctValCcy","").upper() for x in r0.json().get("data",[]) if x.get("settleCcy")=="USDT" and x.get("state")=="live"}
+            if okx_s: rows = [r for r in rows if r["sym"] in okx_s]
+    except Exception: pass
     return rows
 data = get_data()
 ho = ["BTC","ETH","SOL","XRP","DOGE","SUI"]

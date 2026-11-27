@@ -113,8 +113,8 @@ body{{background-color:#060608;background-image:radial-gradient(circle at 20% 10
   <div class="clk">🕒 台灣：<span id="ck">--:--:--</span></div>
   <div id="st" style="color:#fbbf24;font-weight:bold;">⚡ 同步 OKX 真實盤口中...</div>
   <button id="snd-btn" class="snd-btn" onclick="toggleSnd()">🔕 音效:關</button>
-  <button class="snd-btn" onclick="refreshAll(this)">🔄 刷新AI</button>
-</div>
+  <button class="snd-btn" onclick="this.dataset.manual='1';refreshAll(this)">🔄 刷新AI</button>
+  </div>
 <div class="mkt-panel">
   <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px;">
     <span id="m-dir" style="font-size:14.5px;font-weight:900;color:#fbbf24;">🟡 同步真實市場方向中...</span>
@@ -252,7 +252,9 @@ async function refreshAll(btn){{
       return;
     }}
   }}catch(e){{}}
-  window.parent.location.reload();
+  renderBoards();
+  if(btn&&btn.dataset.manual==='1'){{window.parent.location.reload();}}
+
 }}
 
 function updateTick(s,np){{
@@ -260,14 +262,13 @@ function updateTick(s,np){{
   const cl=np>op?'up':'dn';
   document.querySelectorAll('.p-'+s).forEach(el=>{{el.innerText=fmt(np);el.classList.remove('up','dn');void el.offsetWidth;el.classList.add(cl);setTimeout(()=>el.classList.remove('up','dn'),400);}});
 }}
-
 function connWS(){{
   const ws=new WebSocket(D.ws);
   ws.onopen=()=>{{document.getElementById('st').innerText='⚡ OKX 逐筆成交狂跳中';D.syms.forEach(s=>ws.send(JSON.stringify({{op:'subscribe',args:[{{channel:'trades',instId:s+'-USDT-SWAP'}},{{channel:'bbo-tbt',instId:s+'-USDT-SWAP'}}]}})));}};
   ws.onmessage=e=>{{const m=JSON.parse(e.data);if(m.data&&m.data){{const d=m.data,s=d.instId.replace('-USDT-SWAP',''),p=parseFloat(d.px||d.bidPx||d.last);if(p>0)updateTick(s,p);}}}};
   ws.onclose=()=>setTimeout(connWS,2000);
-}}
-
+renderBoards();
+connWS();
 refreshAll(document.querySelectorAll('.snd-btn')).then(()=>connWS());
 </script></body></html>"""
 components.html(html, height=2200, scrolling=True)

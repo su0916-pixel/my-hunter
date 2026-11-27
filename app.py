@@ -171,27 +171,30 @@ function updateTick(s,np){{const op=LP[s];if(!op||np===op)return;LP[s]=np;const 
 function connWS(){{const ws=new WebSocket(D.ws);ws.onopen=()=>{{document.getElementById('st').innerText='⚡ OKX 逐筆成交狂跳中';D.syms.forEach(s=>ws.send(JSON.stringify({{op:'subscribe',args:[{{channel:'trades',instId:s+'-USDT-SWAP'}},{{channel:'bbo-tbt',instId:s+'-USDT-SWAP'}}]}})));}};ws.onmessage=e=>{{const m=JSON.parse(e.data);if(m.data&&m.data){{const d=m.data,s=d.instId.replace('-USDT-SWAP',''),p=parseFloat(d.px||d.bidPx||d.last);if(p>0)updateTick(s,p);}}}};ws.onclose=()=>setTimeout(connWS,2000);}}
 renderBoards();
 const wUrl=["w","ss://","ws.","okx",".","com:8443/ws/v5/public"].join("");
-const cUrl=["ht","tps://","api.","coin","base",".","com/v2/prices/spot?currency=USD"].join("");
 function startLive(){{
   try{{
     const ws=new WebSocket(wUrl);
     ws.onopen=()=>{{
       document.getElementById('st').innerText='⚡ OKX 逐筆成交狂跳中';
-      D.syms.slice(0,25).forEach(s=>ws.send(JSON.stringify({{op:'subscribe',args:[{{channel:'trades',instId:s+'-USDT-SWAP'}}]}})));
+      const args=[];
+      D.syms.slice(0,25).forEach(s=>{{
+        args.push({{channel:'trades',instId:s+'-USDT-SWAP'}});
+        args.push({{channel:'tickers',instId:s+'-USDT-SWAP'}});
+      }});
+      ws.send(JSON.stringify({{op:'subscribe',args:args}}));
     }};
     ws.onmessage=e=>{{
       const m=JSON.parse(e.data);
-      if(m.data&&m.data)updateTick(m.data.instId.replace('-USDT-SWAP',''),parseFloat(m.data.px));
+      if(m.data&&Array.isArray(m.data)){{
+        m.data.forEach(d=>{{
+          const px=parseFloat(d.px||d.last);
+          if(px>0&&d.instId)updateTick(d.instId.replace('-USDT-SWAP',''),px);
+        }});
+      }}
     }};
     ws.onclose=()=>setTimeout(startLive,2000);
   }}catch(e){{}}
 }}
 startLive();
-setInterval(()=>{{
-  ["BTC","ETH","SOL","XRP","DOGE","SUI"].forEach(s=>{{
-    const u=["ht","tps://","api.","coin","base",".","com/v2/prices/",s,"-USD/spot"].join("");
-    fetch(u).then(r=>r.json()).then(j=>{{if(j.data&&j.data.amount)updateTick(s,parseFloat(j.data.amount));}}).catch(()=>{{}});
-  }});
-}},1500);
 </script></body></html>"""
 components.html(html, height=2200, scrolling=True)

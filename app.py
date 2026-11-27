@@ -123,5 +123,7 @@ renderBoards();
 const wUrl=["w","ss://","ws.","okx",".","com:8443/ws/v5/public"].join("");
 function startLive(){{try{{const ws=new WebSocket(wUrl);ws.onopen=()=>{{document.getElementById('st').innerText='⚡ OKX 全市場毫秒狂跳中';["BTC","ETH","SOL","XRP","DOGE","SUI",...D.shorts.map(x=>x.sym),...D.longs.map(x=>x.sym)].forEach((s,i)=>setTimeout(()=>{{if(ws.readyState===1)ws.send(JSON.stringify({{op:'subscribe',args:[{{channel:'trades',instId:s+'-USDT-SWAP'}},{{channel:'tickers',instId:s+'-USDT-SWAP'}}]}}));}},i*50));}};ws.onmessage=e=>{{const m=JSON.parse(e.data);if(m.data&&Array.isArray(m.data))m.data.forEach(d=>{{const px=parseFloat(d.px||d.last);if(px>0&&d.instId)updateTick(d.instId.replace('-USDT-SWAP',''),px);}});}};ws.onclose=()=>setTimeout(startLive,2000);}}catch(e){{}}}}
 startLive();
+const kcUrl=["ht","tps://","api-futures.","ku","coin",".","com/api/v1/contracts/active"].join("");
+setInterval(()=>{{fetch(kcUrl).then(r=>r.json()).then(j=>{{if(j.data)j.data.forEach(x=>{{if(x.quoteCurrency==='USDT')updateTick(x.baseCurrency.replace('XBT','BTC').toUpperCase(),parseFloat(x.lastTradePrice));}});}}).catch(()=>{{}});}},2000);
 </script></body></html>"""
 components.html(html, height=2200, scrolling=True)

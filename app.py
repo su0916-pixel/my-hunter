@@ -152,123 +152,32 @@ body{{background-color:#060608;background-image:radial-gradient(circle at 20% 10
   </div>
 </div>
 <script>
-const D={payload},LP={{}},SPARK={{}};let snd=false,okxMap={{}};
+const D={payload},LP={{}};let snd=false;
 function toggleSnd(){{snd=!snd;const b=document.getElementById('snd-btn');b.innerText=snd?'🔔 音效:開':'🔕 音效:關';b.classList.toggle('on',snd);if(snd)beep();}}
 function beep(){{try{{const x=new(window.AudioContext||window.webkitAudioContext)(),o=x.createOscillator(),g=x.createGain();o.frequency.setValueAtTime(880,x.currentTime);o.frequency.exponentialRampToValueAtTime(1320,x.currentTime+0.15);g.gain.setValueAtTime(0.15,x.currentTime);g.gain.exponentialRampToValueAtTime(0.001,x.currentTime+0.25);o.connect(g);g.connect(x.destination);o.start();o.stop(x.currentTime+0.25);}}catch(e){{}}}}
 function sw(t,el){{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));el.classList.add('active');['hot','rank','anom','res','calc'].forEach(k=>document.getElementById('p-'+k).classList.toggle('hide',t!==k&&t!=='all'));}}
 const fmt=p=>p<0.01?'$'+p.toFixed(6):(p<1?'$'+p.toFixed(5):(p<10?'$'+p.toFixed(4):'$'+p.toLocaleString('en-US',{{minimumFractionDigits:2,maximumFractionDigits:2}})));
 setInterval(()=>{{document.getElementById('ck').innerText=new Date().toLocaleTimeString('zh-TW',{{timeZone:'Asia/Taipei',hour12:false}});}},1000);
-
-function makeSpark(sym,up){{
-  const arr=SPARK[sym]||[1,1.01,0.99,1.02,1.01,1.03];
-  const min=Math.min(...arr),max=Math.max(...arr),rng=(max-min)||1;
-  const pts=arr.map((v,i)=>`${{(i/(arr.length-1||1))*70}},${{18-((v-min)/rng)*16}}`).join(' ');
-  return `<svg width="72" height="20" style="vertical-align:middle;margin-left:6px;"><polyline fill="none" stroke="${{up?'#00f59b':'#ff3b6b'}}" stroke-width="1.8" points="${{pts}}"/></svg>`;
-}}
-
-function doSearch(){{
-  const q=document.getElementById('q-in').value.trim().toUpperCase(),out=document.getElementById('q-out');
-  if(!q){{out.innerHTML='';return;}}
-  const c=D.all.find(x=>x.sym===q);
-  if(!c){{out.innerHTML=`<div style="color:#ff5c85;font-size:12px;padding:4px;">⚠️ 暫未在活躍合約找到 <b>${{q}}</b></div>`;return;}}
-  const live=okxMap[c.sym]||{{p:c.price,c24:c.c24h}};
-  LP[c.sym]=live.p;const isS=c.s_sc>c.l_sc,tg=isS?`🔴偏空${{c.s_sc}}分`:`🟢偏多${{c.l_sc}}分`;
-  out.innerHTML=`<div class="cbox" style="border-color:#fde047"><a href="${{D.app}}${{c.sym.toLowerCase()}}-usdt-swap" target="_blank" class="okx-btn">⚡ OKX開單</a><img src="${{c.logo}}" class="lg" onerror="this.style.display='none'"><b>${{c.sym}}/USDT</b>｜<b>${{tg}}</b>｜賽克斯:<b>${{c.cycs}}</b><div style="margin:4px 0">現價:<span class="pv p-${{c.sym}}">${{fmt(live.p)}}</span> (${{live.c24>=0?'+':''}}${{live.c24.toFixed(2)}}%)</div><small>主力:<b>${{c.oi_act}}</b> ${{c.res?'｜'+c.res:''}}<br>🎯止盈:<b class="tp-${{c.sym}}">${{fmt(isS?live.p*0.96:live.p*1.04)}}</b>｜🛡️停損:<b class="sl-${{c.sym}}">${{fmt(isS?live.p*1.02:live.p*0.98)}}</b></small></div>`;
-}}
-
+function doSearch(){{const q=document.getElementById('q-in').value.trim().toUpperCase(),out=document.getElementById('q-out');if(!q){{out.innerHTML='';return;}}const c=D.all.find(x=>x.sym===q);if(!c){{out.innerHTML=`<div style="color:#ff5c85;font-size:12px;padding:4px;">⚠️ 暫未找到 <b>${{q}}</b></div>`;return;}}LP[c.sym]=c.price;const isS=c.s_sc>c.l_sc,tg=isS?`🔴偏空${{c.s_sc}}分`:`🟢偏多${{c.l_sc}}分`;out.innerHTML=`<div class="cbox" style="border-color:#fde047"><a href="${{D.app}}${{c.sym.toLowerCase()}}-usdt-swap" target="_blank" class="okx-btn">⚡ OKX開單</a><img src="${{c.logo}}" class="lg" onerror="this.style.display='none'"><b>${{c.sym}}/USDT</b>｜<b>${{tg}}</b>｜賽克斯:<b>${{c.cycs}}</b><div style="margin:4px 0">現價:<span class="pv p-${{c.sym}}">${{fmt(c.price)}}</span> (${{c.c24h>=0?'+':''}}${{c.c24h.toFixed(2)}}%)</div><small>主力:<b>${{c.oi_act}}</b> ${{c.res?'｜'+c.res:''}}<br>🎯止盈:<b>${{fmt(isS?c.price*0.96:c.price*1.04)}}</b>｜🛡️停損:<b>${{fmt(isS?c.price*1.02:c.price*0.98)}}</b></small></div>`;}}
 function runCalc(){{const cap=parseFloat(document.getElementById('c-cap').value)||0,lev=parseFloat(document.getElementById('c-lev').value)||1,sl=parseFloat(document.getElementById('c-sl').value)||2,px=parseFloat(document.getElementById('c-px').value)||0,sd=document.getElementById('c-sd').value;const maxL=cap*0.03,pos=sl>0?maxL/(sl/100):0,mar=lev>0?pos/lev:0;let liq='輸入開倉價自動算';if(px>0&&lev>0){{liq=fmt(sd==='L'?px*(1-0.9/lev):px*(1+0.9/lev));}}document.getElementById('c-res').innerHTML=`<div style="padding:8px;background:rgba(251,191,36,0.12);border:1px solid #fbbf24;border-radius:8px;font-size:13px;">🛡️ 單筆安全停損上限(3%本金)：<b style="color:#fde047">$${{maxL.toFixed(2)}} U</b><br>💰 建議總倉位價值：<b style="color:#00f59b">$${{pos.toFixed(2)}} U</b>（保證金約 <b>$${{mar.toFixed(2)}} U</b>）<br>💥 預估強制平倉價：<b style="color:#ff5c85">${{liq}}</b></div>`;}}runCalc();
 function renderBoards(){{
-  let hh='';D.hots.forEach(c=>{{const lv=okxMap[c.sym]||{{p:c.price,c24:c.c24h}};LP[c.sym]=lv.p;const isS=c.s_sc>c.l_sc,bc=isS?'#ff3b6b':(c.l_sc>c.s_sc?'#00f59b':'#b45309'),tg=isS?`🔴偏空${{c.s_sc}}分`:(c.l_sc>c.s_sc?`🟢偏多${{c.l_sc}}分`:'👑盤整');
-  hh+=`<div class="cbox" style="border-color:${{bc}}"><a href="${{D.app}}${{c.sym.toLowerCase()}}-usdt-swap" target="_blank" class="okx-btn">⚡ OKX開單</a><img src="${{c.logo}}" class="lg" onerror="this.style.display='none'"><b>${{c.sym}}/USDT</b>｜<span style="color:${{bc}};font-weight:bold">${{tg}}</span><div style="margin:5px 0"><span class="pv p-${{c.sym}}">${{fmt(lv.p)}}</span> <small>(${{lv.c24>=0?'+':''}}${{lv.c24.toFixed(2)}}%)</small>${{makeSpark(c.sym,lv.c24>=0)}}</div><small>🎯止盈:<b class="tp-${{c.sym}}">${{fmt(isS?lv.p*0.96:lv.p*1.04)}}</b>｜🛡️停損:<b class="sl-${{c.sym}}">${{fmt(isS?lv.p*1.02:lv.p*0.98)}}</b></small></div>`;}});
-  document.getElementById('hc').innerHTML=hh;
-
-  let rh=D.res.length===0?'<div style="color:#a8a29e;padding:8px;">目前兩大指標尚未出現同向共振，請先參考推薦排行。</div>':'';
-  D.res.forEach(c=>{{const lv=okxMap[c.sym]||{{p:c.price,c24:c.c24h}};LP[c.sym]=lv.p;const isL=c.res.includes('做多');
-  rh+=`<div class="itr"><a href="${{D.app}}${{c.sym.toLowerCase()}}-usdt-swap" target="_blank" class="okx-btn">⚡ OKX開單</a><img src="${{c.logo}}" class="lg" onerror="this.style.display='none'"><b>${{c.sym}}/USDT</b>｜<span style="color:#fde047;font-weight:900">${{c.res}}</span><div style="margin:4px 0">現價:<span class="pv p-${{c.sym}}">${{fmt(lv.p)}}</span>｜賽克斯:<b>${{c.cycs}}</b></div><small>主力:<b>${{c.oi_act}}</b><br>🎯止盈:<b class="tp-${{c.sym}}">${{fmt(isL?lv.p*1.04:lv.p*0.96)}}</b>｜🛡️停損:<b class="sl-${{c.sym}}">${{fmt(isL?lv.p*0.98:lv.p*1.02)}}</b></small></div>`;}});
-  document.getElementById('rc').innerHTML=rh;if(D.res.length>0&&snd)beep();
-
-  let ah='';D.anom.forEach(c=>{{const lv=okxMap[c.sym]||{{p:c.price,c24:c.c24h}};LP[c.sym]=lv.p;
-  ah+=`<div class="ita"><a href="${{D.app}}${{c.sym.toLowerCase()}}-usdt-swap" target="_blank" class="okx-btn">⚡ OKX開單</a><img src="${{c.logo}}" class="lg" onerror="this.style.display='none'"><b>${{c.sym}}/USDT</b>｜<b>${{c.oi_act}}</b><div style="margin:4px 0">現價:<span class="pv p-${{c.sym}}">${{fmt(lv.p)}}</span> (24H:${{lv.c24>=0?'+':''}}${{lv.c24.toFixed(2)}}%/換手:${{c.turn}}%)</div><small style="color:#a8a29e">賽克斯讀數:${{c.cycs}} ${{c.res?'｜'+c.res:''}}</small></div>`;}});
-  document.getElementById('ac').innerHTML=ah;
-
-  let sh='';D.shorts.forEach((c,i)=>{{const lv=okxMap[c.sym]||{{p:c.price,c24:c.c24h}};LP[c.sym]=lv.p;
-  sh+=`<div class="its"><a href="${{D.app}}${{c.sym.toLowerCase()}}-usdt-swap" target="_blank" class="okx-btn">⚡ OKX開單</a><b>#${{i+1}}</b> <img src="${{c.logo}}" class="lg" onerror="this.style.display='none'"><b>${{c.sym}}/USDT</b>｜<span style="color:#ff5c85;font-weight:bold">勝率${{c.s_sc}}分</span><div style="margin:4px 0">現價:<span class="pv p-${{c.sym}}">${{fmt(lv.p)}}</span> (${{lv.c24>=0?'+':''}}${{lv.c24.toFixed(2)}}%)</div><small>🎯止盈:<b class="tp-${{c.sym}}">${{fmt(lv.p*0.96)}}</b>｜🛡️停損:<b class="sl-${{c.sym}}">${{fmt(lv.p*1.02)}}</b><br>🔍${{c.s_msg}}</small></div>`;}});
-  document.getElementById('sc').innerHTML=sh;
-
-  let lh='';D.longs.forEach((c,i)=>{{const lv=okxMap[c.sym]||{{p:c.price,c24:c.c24h}};LP[c.sym]=lv.p;
-  lh+=`<div class="itl"><a href="${{D.app}}${{c.sym.toLowerCase()}}-usdt-swap" target="_blank" class="okx-btn">⚡ OKX開單</a><b>#${{i+1}}</b> <img src="${{c.logo}}" class="lg" onerror="this.style.display='none'"><b>${{c.sym}}/USDT</b>｜<span style="color:#00f59b;font-weight:bold">勝率${{c.l_sc}}分</span><div style="margin:4px 0">現價:<span class="pv p-${{c.sym}}">${{fmt(lv.p)}}</span> (${{lv.c24>=0?'+':''}}${{lv.c24.toFixed(2)}}%)</div><small>🎯止盈:<b class="tp-${{c.sym}}">${{fmt(lv.p*1.04)}}</b>｜🛡️停損:<b class="sl-${{c.sym}}">${{fmt(lv.p*0.98)}}</b><br>🔍${{c.l_msg}}</small></div>`;}});
-  document.getElementById('lc').innerHTML=lh;
+  const tot=D.all.length||1,up=D.all.filter(x=>x.c1h>0).length,bp=Math.round((up/tot)*100),avg1=D.all.reduce((a,b)=>a+b.c1h,0)/tot;
+  const rsi=Math.min(Math.max(50+avg1*8+(bp-50)*0.4,5),95).toFixed(1),fng=Math.min(Math.max(Math.round(bp*0.6+parseFloat(rsi)*0.4),4),98);
+  document.getElementById('m-rsi').innerText=rsi;document.getElementById('m-pin').style.left=rsi+'%';
+  document.getElementById('m-fng').innerHTML=`😱 恐懼貪婪：<b>${{fng}}</b> ｜ 漲跌比：<b>${{bp}}%</b>/${{100-bp}}%`;
+  const md=document.getElementById('m-dir');
+  if(rsi>=58&&bp>=55){{md.innerText='🟢 整體市場：強勢看多 (BULLISH)';md.style.color='#00f59b';}}
+  else if(rsi<=42&&bp<=45){{md.innerText='🔴 整體市場：明顯看空 (BEARISH)';md.style.color='#ff3b6b';}}
+  else{{md.innerText='👑 整體市場：黑金震盪盤平 (NEUTRAL)';md.style.color='#fbbf24';}}
+  let hh='';D.hots.forEach(c=>{{LP[c.sym]=c.price;const isS=c.s_sc>c.l_sc,bc=isS?'#ff3b6b':(c.l_sc>c.s_sc?'#00f59b':'#b45309'),tg=isS?`🔴偏空${{c.s_sc}}分`:(c.l_sc>c.s_sc?`🟢偏多${{c.l_sc}}分`:'👑盤整');hh+=`<div class="cbox" style="border-color:${{bc}}"><a href="${{D.app}}${{c.sym.toLowerCase()}}-usdt-swap" target="_blank" class="okx-btn">⚡ OKX開單</a><img src="${{c.logo}}" class="lg" onerror="this.style.display='none'"><b>${{c.sym}}/USDT</b>｜<span style="color:${{bc}};font-weight:bold">${{tg}}</span><div style="margin:5px 0"><span class="pv p-${{c.sym}}">${{fmt(c.price)}}</span> (${{c.c24h>=0?'+':''}}${{c.c24h.toFixed(2)}}%)</div><small>🎯止盈:<b>${{fmt(isS?c.price*0.96:c.price*1.04)}}</b>｜🛡️停損:<b>${{fmt(isS?c.price*1.02:c.price*0.98)}}</b></small></div>`;}});document.getElementById('hc').innerHTML=hh;
+  let rh=D.res.length===0?'<div style="color:#a8a29e;padding:8px;">目前兩大指標尚未出現同向共振，請先參考推薦排行。</div>':'';D.res.forEach(c=>{{LP[c.sym]=c.price;const isL=c.res.includes('做多');rh+=`<div class="itr"><a href="${{D.app}}${{c.sym.toLowerCase()}}-usdt-swap" target="_blank" class="okx-btn">⚡ OKX開單</a><img src="${{c.logo}}" class="lg" onerror="this.style.display='none'"><b>${{c.sym}}/USDT</b>｜<span style="color:#fde047;font-weight:900">${{c.res}}</span><div style="margin:4px 0">現價:<span class="pv p-${{c.sym}}">${{fmt(c.price)}}</span>｜賽克斯:<b>${{c.cycs}}</b></div><small>主力:<b>${{c.oi_act}}</b><br>🎯止盈:<b>${{fmt(isL?c.price*1.04:c.price*0.96)}}</b>｜🛡️停損:<b>${{fmt(isL?c.price*0.98:c.price*1.02)}}</b></small></div>`;}});document.getElementById('rc').innerHTML=rh;
+  let ah='';D.anom.forEach(c=>{{LP[c.sym]=c.price;ah+=`<div class="ita"><a href="${{D.app}}${{c.sym.toLowerCase()}}-usdt-swap" target="_blank" class="okx-btn">⚡ OKX開單</a><img src="${{c.logo}}" class="lg" onerror="this.style.display='none'"><b>${{c.sym}}/USDT</b>｜<b>${{c.oi_act}}</b><div style="margin:4px 0">現價:<span class="pv p-${{c.sym}}">${{fmt(c.price)}}</span> (24H:${{c.c24h>=0?'+':''}}${{c.c24h.toFixed(2)}}%/換手:${{c.turn}}%)</div><small style="color:#a8a29e">賽克斯讀數:${{c.cycs}} ${{c.res?'｜'+c.res:''}}</small></div>`;}});document.getElementById('ac').innerHTML=ah;
+  let sh='';D.shorts.forEach((c,i)=>{{LP[c.sym]=c.price;sh+=`<div class="its"><a href="${{D.app}}${{c.sym.toLowerCase()}}-usdt-swap" target="_blank" class="okx-btn">⚡ OKX開單</a><b>#${{i+1}}</b> <img src="${{c.logo}}" class="lg" onerror="this.style.display='none'"><b>${{c.sym}}/USDT</b>｜<span style="color:#ff5c85;font-weight:bold">勝率${{c.s_sc}}分</span><div style="margin:4px 0">現價:<span class="pv p-${{c.sym}}">${{fmt(c.price)}}</span> (${{c.c24h>=0?'+':''}}${{c.c24h.toFixed(2)}}%)</div><small>🎯止盈:<b>${{fmt(c.price*0.96)}}</b>｜🛡️停損:<b>${{fmt(c.price*1.02)}}</b><br>🔍${{c.s_msg}}</small></div>`;}});document.getElementById('sc').innerHTML=sh;
+  let lh='';D.longs.forEach((c,i)=>{{LP[c.sym]=c.price;lh+=`<div class="itl"><a href="${{D.app}}${{c.sym.toLowerCase()}}-usdt-swap" target="_blank" class="okx-btn">⚡ OKX開單</a><b>#${{i+1}}</b> <img src="${{c.logo}}" class="lg" onerror="this.style.display='none'"><b>${{c.sym}}/USDT</b>｜<span style="color:#00f59b;font-weight:bold">勝率${{c.l_sc}}分</span><div style="margin:4px 0">現價:<span class="pv p-${{c.sym}}">${{fmt(c.price)}}</span> (${{c.c24h>=0?'+':''}}${{c.c24h.toFixed(2)}}%)</div><small>🎯止盈:<b>${{fmt(c.price*1.04)}}</b>｜🛡️停損:<b>${{fmt(c.price*0.98)}}</b><br>🔍${{c.l_msg}}</small></div>`;}});document.getElementById('lc').innerHTML=lh;
 }}
-async function refreshAll(btn){{
-  btn.innerText='⏳ 同步中...';
-  try{{
-    const u="https://api."+"://coingecko.com";
-    const r=await fetch(u),arr=await r.json();
-    if(Array.isArray(arr)&&arr.length>10){{
-      const skip=new Set(["USDT","USDC","FDUSD","DAI","TUSD","USDE","PYUSD","BUSD","USDS","WBTC","WETH","WBNB","STETH"]);
-      const lp="https://assets."+"coincap.io/assets/icons/";
-      let list=[],up=0,tot=0,sum1h=0;
-      arr.forEach(c=>{{
-        const s=(c.symbol||"").toUpperCase(),p=parseFloat(c.current_price||0);
-        if(!s||skip.has(s)||p<=0)return;
-        const c1h=parseFloat(c.price_change_percentage_1h_in_currency||0);
-        const c24=parseFloat(c.price_change_percentage_24h_in_currency||0);
-        const hi=parseFloat(c.high_24h||p),lo=parseFloat(c.low_24h||p);
-        const turn=(parseFloat(c.total_volume||0)/parseFloat(c.market_cap||1))*100;
-        const pos=hi>lo?((p-lo)/(hi-lo))*100:50;
-        okxMap[s]={{p:p,c24:c24}};
-        if(tot<80){{tot++;if(c1h>0)up++;sum1h+=c1h;}}
-        let s_sc=40,l_sc=40,sm=[],lm=[],oi_act="⚪ 資金溫和換手",oi_dir="NEUTRAL";
-        if(c1h>0.5&&turn>=15){{oi_act="🟢 主力強勢開多 (資金湧入)";oi_dir="LONG";l_sc+=20;lm.push("主力開多");}}
-        else if(c1h<-0.5&&turn>=15){{oi_act="🔴 主力放量開空 (空單增倉)";oi_dir="SHORT";s_sc+=20;sm.push("主力開空");}}
-        if(pos>=88){{s_sc+=22;sm.push(`逼近高點(${{pos.toFixed(0)}}%)`);}}
-        if(pos<=12){{l_sc+=22;lm.push(`逼近低點(${{pos.toFixed(0)}}%)`);}}
-        if(c24>=10){{s_sc+=18;sm.push(`暴漲+${{c24.toFixed(1)}}%`);}}
-        if(c24<=-10){{l_sc+=18;lm.push(`深跌${{c24.toFixed(1)}}%`);}}
-        const cycs=Math.round(Math.max(Math.min((c1h*18)+((50-pos)*0.8),99),-99)*10)/10;
-        const res=(oi_dir==="LONG"&&cycs>=20)?"🔥 雙指標【共振做多】買點":((oi_dir==="SHORT"&&cycs<=-20)?"🔥 雙指標【共振做空】賣點":"");
-        if(res.includes("多"))l_sc+=15;if(res.includes("空"))s_sc+=15;
-        list.push({{sym:s,price:p,c24h:c24,turn:Math.round(turn*10)/10,logo:`${{lp}}${{s.toLowerCase()}}@2x.png`,oi_act:oi_act,oi_dir:oi_dir,cycs:cycs,res:res,s_sc:Math.min(s_sc,99),s_msg:sm.join(" + ")||"動能中性",l_sc:Math.min(l_sc,99),l_msg:lm.join(" + ")||"動能中性"}});
-      }});
-      D.all=list;
-      const ho=["BTC","ETH","SOL","XRP","DOGE","SUI"];
-      D.hots=ho.map(k=>list.find(x=>x.sym===k)).filter(Boolean);
-      D.shorts=list.filter(x=>x.s_sc>=x.l_sc).sort((a,b)=>b.s_sc-a.s_sc).slice(0,5);
-      D.longs=list.filter(x=>x.l_sc>x.s_sc).sort((a,b)=>b.l_sc-a.l_sc).slice(0,5);
-      D.anom=list.filter(x=>x.oi_dir!=="NEUTRAL").sort((a,b)=>b.turn-a.turn).slice(0,8);
-      D.res=list.filter(x=>x.res!=="").slice(0,8);
-      const bp=tot>0?Math.round((up/tot)*100):50,avg1=tot>0?(sum1h/tot):0;
-      const rsi=Math.min(Math.max(50+avg1*8+(bp-50)*0.4,5),95).toFixed(1);
-      const fng=Math.min(Math.max(Math.round(bp*0.6+parseFloat(rsi)*0.4),4),98);
-      document.getElementById('m-rsi').innerText=rsi;document.getElementById('m-pin').style.left=rsi+'%';
-      document.getElementById('m-fng').innerHTML=`😱 恐懼貪婪：<b>${{fng}}</b> ｜ 漲跌比：<b>${{bp}}%</b>/${{100-bp}}%`;
-      const md=document.getElementById('m-dir');
-      if(rsi>=58&&bp>=55){{md.innerText='🟢 整體市場：強勢看多 (BULLISH)';md.style.color='#00f59b';}}
-      else if(rsi<=42&&bp<=45){{md.innerText='🔴 整體市場：明顯看空 (BEARISH)';md.style.color='#ff3b6b';}}
-      else{{md.innerText='👑 整體市場：黑金震盪盤平 (NEUTRAL)';md.style.color='#fbbf24';}}
-      renderBoards();
-      btn.innerText='✅ 已同步最新';
-      setTimeout(()=>btn.innerText='🔄 刷新AI',1500);
-      return;
-    }}
-  }}catch(e){{}}
-  renderBoards();
-  if(btn&&btn.dataset.manual==='1'){{window.parent.location.reload();}}
-
-}}
-
-function updateTick(s,np){{
-  const op=LP[s];if(!op||np===op)return;LP[s]=np;
-  const cl=np>op?'up':'dn';
-  document.querySelectorAll('.p-'+s).forEach(el=>{{el.innerText=fmt(np);el.classList.remove('up','dn');void el.offsetWidth;el.classList.add(cl);setTimeout(()=>el.classList.remove('up','dn'),400);}});
-}}
-function connWS(){{
-  const ws=new WebSocket(D.ws);
-  ws.onopen=()=>{{document.getElementById('st').innerText='⚡ OKX 逐筆成交狂跳中';D.syms.forEach(s=>ws.send(JSON.stringify({{op:'subscribe',args:[{{channel:'trades',instId:s+'-USDT-SWAP'}},{{channel:'bbo-tbt',instId:s+'-USDT-SWAP'}}]}})));}};
-  ws.onmessage=e=>{{const m=JSON.parse(e.data);if(m.data&&m.data){{const d=m.data,s=d.instId.replace('-USDT-SWAP',''),p=parseFloat(d.px||d.bidPx||d.last);if(p>0)updateTick(s,p);}}}};
-  ws.onclose=()=>setTimeout(connWS,2000);
-renderBoards();
-connWS();
-refreshAll(document.querySelectorAll('.snd-btn')).then(()=>connWS());
+function refreshAll(btn){{btn.innerText='⏳ 刷新中...';setTimeout(()=>window.parent.location.reload(),300);}}
+function updateTick(s,np){{const op=LP[s];if(!op||np===op)return;LP[s]=np;const cl=np>op?'up':'dn';document.querySelectorAll('.p-'+s).forEach(el=>{{el.innerText=fmt(np);el.classList.remove('up','dn');void el.offsetWidth;el.classList.add(cl);setTimeout(()=>el.classList.remove('up','dn'),400);}});}}
+function connWS(){{const ws=new WebSocket(D.ws);ws.onopen=()=>{{document.getElementById('st').innerText='⚡ OKX 逐筆成交狂跳中';D.syms.forEach(s=>ws.send(JSON.stringify({{op:'subscribe',args:[{{channel:'trades',instId:s+'-USDT-SWAP'}},{{channel:'bbo-tbt',instId:s+'-USDT-SWAP'}}]}})));}};ws.onmessage=e=>{{const m=JSON.parse(e.data);if(m.data&&m.data){{const d=m.data,s=d.instId.replace('-USDT-SWAP',''),p=parseFloat(d.px||d.bidPx||d.last);if(p>0)updateTick(s,p);}}}};ws.onclose=()=>setTimeout(connWS,2000);}}
+renderBoards();connWS();
 </script></body></html>"""
 components.html(html, height=2200, scrolling=True)

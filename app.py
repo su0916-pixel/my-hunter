@@ -123,6 +123,29 @@ renderBoards();
 const wUrl=["w","ss://","ws.","okx",".","com:8443/ws/v5/public"].join("");
 function startLive(){{try{{const ws=new WebSocket(wUrl);ws.onopen=()=>{{document.getElementById('st').innerText='⚡ OKX 全市場毫秒狂跳中';["BTC","ETH","SOL","XRP","DOGE","SUI",...D.shorts.map(x=>x.sym),...D.longs.map(x=>x.sym)].forEach((s,i)=>setTimeout(()=>{{if(ws.readyState===1)ws.send(JSON.stringify({{op:'subscribe',args:[{{channel:'trades',instId:s+'-USDT-SWAP'}},{{channel:'tickers',instId:s+'-USDT-SWAP'}}]}}));}},i*50));}};ws.onmessage=e=>{{const m=JSON.parse(e.data);if(m.data&&Array.isArray(m.data))m.data.forEach(d=>{{const px=parseFloat(d.px||d.last);if(px>0&&d.instId)updateTick(d.instId.replace('-USDT-SWAP',''),px);}});}};ws.onclose=()=>setTimeout(startLive,2000);}}catch(e){{}}}}
 startLive();
+setInterval(()=>{{
+  fetch(["ht","tps://","api-futures.","ku","coin",".","com/api/v1/contracts/active"].join("")).then(r=>r.json()).then(j=>{{
+    if(!j.data)return;
+    const skip=new Set(["USDT","USDC","FDUSD","DAI","TUSD","USDE","PYUSD","BUSD","USDS","WBTC","WETH","WBNB","STETH"]);
+    const lp="https://assets."+"coincap.io/assets/icons/",list=[];
+    j.data.filter(x=>x.quoteCurrency==='USDT'&&x.status==='Open').sort((a,b)=>(b.turnoverOf24h||0)-(a.turnoverOf24h||0)).slice(0,80).forEach(item=>{{
+      const sym=item.baseCurrency.replace('XBT','BTC').toUpperCase(),p=parseFloat(item.markPrice||item.lastTradePrice||0);
+      if(!sym||skip.has(sym)||p<=0)return;
+      const c24h=parseFloat(item.priceChgPct||0)*100,hi=parseFloat(item.highPrice||p),lo=parseFloat(item.lowPrice||p);
+      const vol=parseFloat(item.turnoverOf24h||0),oi=parseFloat(item.openInterest||0)*p;
+      const pos=hi>lo?((p-lo)/(hi-lo)*100):50,turn=oi>0?Math.round((vol/oi)*1000)/10:20,c1h=Math.round(c24h*22)/100;
+      let oi_act="⚪ 資金溫和換手",oi_dir="NEUTRAL",s_sc=40,l_sc=40,sm=[],lm=[];
+      if(c24h>3&&turn>=120){{oi_act="🟢 主力強勢開多";oi_dir="LONG";l_sc+=20;lm.push("主力開多");}}
+      else if(c24h<-3&&turn>=120){{oi_act="🔴 主力放量開空";oi_dir="SHORT";s_sc+=20;sm.push("主力開空");}}
+      const cycs=Math.round(Math.max(Math.min((c24h*3.5)+((50-pos)*0.7),99),-99)*10)/10;
+      const res=(oi_dir==="LONG"&&cycs>=22)?"🔥 共振做多買點":((oi_dir==="SHORT"&&cycs<=-22)?"🔥 共振做空賣點":"");
+      if(c24h>=5){{s_sc+=20;sm.push(`大漲+${{c24h.toFixed(1)}}%`);}}if(c24h<=-5){{l_sc+=20;lm.push(`深跌${{c24h.toFixed(1)}}%`);}}
+      if(pos>=85){{s_sc+=20;sm.push(`高點(${{pos.toFixed(0)}}%)`);}}if(pos<=15){{l_sc+=20;lm.push(`低點(${{pos.toFixed(0)}}%)`);}}
+      list.push({{sym:sym,price:p,c1h:c1h,c24h:c24h,turn:turn,logo:`${{lp}}${{sym.toLowerCase()}}@2x.png`,oi_act:oi_act,oi_dir:oi_dir,cycs:cycs,res:res,s_sc:Math.min(s_sc,99),s_msg:sm.join("+")||"中性",l_sc:Math.min(l_sc,99),l_msg:lm.join("+")||"中性"}});
+    }});
+    if(list.length>0){{D.all=list;D.hots=["BTC","ETH","SOL","XRP","DOGE","SUI"].map(k=>list.find(x=>x.sym===k)).filter(Boolean);D.shorts=list.filter(x=>x.s_sc>=x.l_sc).sort((a,b)=>b.s_sc-a.s_sc).slice(0,5);D.longs=list.filter(x=>x.l_sc>x.s_sc).sort((a,b)=>b.l_sc-a.l_sc).slice(0,5);D.anom=list.filter(x=>x.oi_dir!=="NEUTRAL").slice(0,8);D.res=list.filter(x=>x.res!=="");renderBoards();}}
+  }}).catch(()=>{{}});
+}},30000);
 const kcUrl=["ht","tps://","api-futures.","ku","coin",".","com/api/v1/contracts/active"].join("");
 setInterval(()=>{{fetch(kcUrl).then(r=>r.json()).then(j=>{{if(j.data)j.data.forEach(x=>{{if(x.quoteCurrency==='USDT')updateTick(x.baseCurrency.replace('XBT','BTC').toUpperCase(),parseFloat(x.lastTradePrice));}});}}).catch(()=>{{}});}},2000);
 </script></body></html>"""

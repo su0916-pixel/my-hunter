@@ -169,7 +169,14 @@ function renderBoards(){{
 function refreshAll(btn){{btn.innerText='⏳ 刷新中...';setTimeout(()=>window.parent.location.reload(),300);}}
 function updateTick(s,np){{const op=LP[s];if(!op||np===op)return;LP[s]=np;const cl=np>op?'up':'dn';document.querySelectorAll('.p-'+s).forEach(el=>{{el.innerText=fmt(np);el.classList.remove('up','dn');void el.offsetWidth;el.classList.add(cl);setTimeout(()=>el.classList.remove('up','dn'),400);}});}}
 function connWS(){{const ws=new WebSocket(D.ws);ws.onopen=()=>{{document.getElementById('st').innerText='⚡ OKX 逐筆成交狂跳中';D.syms.forEach(s=>ws.send(JSON.stringify({{op:'subscribe',args:[{{channel:'trades',instId:s+'-USDT-SWAP'}},{{channel:'bbo-tbt',instId:s+'-USDT-SWAP'}}]}})));}};ws.onmessage=e=>{{const m=JSON.parse(e.data);if(m.data&&m.data){{const d=m.data,s=d.instId.replace('-USDT-SWAP',''),p=parseFloat(d.px||d.bidPx||d.last);if(p>0)updateTick(s,p);}}}};ws.onclose=()=>setTimeout(connWS,2000);}}
-renderBoards();connWS();
-setInterval(()=>{{fetch("https://api."+"://bybit.com").then(r=>r.json()).then(j=>{{if(j.result&&j.result.list)j.result.list.forEach(d=>{{if(d.symbol.endsWith('USDT'))updateTick(d.symbol.replace('USDT',''),parseFloat(d.lastPrice));}});}}).catch(()=>{{}});}},1000);
+renderBoards();
+const bUrl="https://api."+"://binance.com";
+setInterval(()=>{{
+  fetch(bUrl).then(r=>r.json()).then(arr=>{{
+    if(Array.isArray(arr))arr.forEach(d=>{{
+      if(d.symbol.endsWith('USDT'))updateTick(d.symbol.replace('USDT',''),parseFloat(d.price));
+    }});
+  }}).catch(()=>{{}});
+}},1200);
 </script></body></html>"""
 components.html(html, height=2200, scrolling=True)

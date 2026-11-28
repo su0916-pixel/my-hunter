@@ -34,16 +34,18 @@ def get_data():
                 cycs = round(max(min((c24h * 3.5) + ((50 - pos) * 0.7), 99), -99), 1)
                 csig = "LONG" if cycs >= 22 else ("SHORT" if cycs <= -22 else "NEUTRAL")
                 res = "🔥 雙指標【共振做多】買點" if (oi_dir=="LONG" and csig=="LONG") else ("🔥 雙指標【共振做空】賣點" if (oi_dir=="SHORT" and csig=="SHORT") else "")
-                s_sc, l_sc, s_m, l_m = 40, 40, [], []
-                if c24h >= 5: s_sc += 20; s_m.append(f"24H大漲+{c24h:.1f}%")
-                if c24h <= -5: l_sc += 20; l_m.append(f"24H深跌{c24h:.1f}%")
-                if pos >= 85: s_sc += 20; s_m.append(f"逼近高點({pos:.0f}%)")
-                if pos <= 15: l_sc += 20; l_m.append(f"逼近低點({pos:.0f}%)")
-                if oi_dir == "SHORT": s_sc += 18; s_m.append(oi_act)
-                if oi_dir == "LONG": l_sc += 18; l_m.append(oi_act)
+                s_sc, l_sc, s_m, l_m = 30, 30, [], []
+                if -12 <= c24h <= -2: s_sc += 20; s_m.append(f"順勢走弱{c24h:.1f}%")
+                if 2 <= c24h <= 12: l_sc += 20; l_m.append(f"順勢轉強+{c24h:.1f}%")
+                if pos <= 40: s_sc += 15; s_m.append(f"空頭壓制({pos:.0f}%)")
+                if pos >= 60: l_sc += 15; l_m.append(f"多頭格局({pos:.0f}%)")
+                if oi_dir == "SHORT": s_sc += 25; s_m.append(oi_act)
+                if oi_dir == "LONG": l_sc += 25; l_m.append(oi_act)
                 if res:
                     if "空" in res: s_sc += 15; s_m.append("賽克斯共振")
                     if "多" in res: l_sc += 15; l_m.append("賽克斯共振")
+                if c24h > 0: s_sc = 10
+                if c24h < 0: l_sc = 10
                 rows.append({"sym":sym,"price":p,"c1h":c1h,"c24h":round(c24h,2),"turn":turn,"logo":f"{lp}{sym.lower()}@2x.png","oi_act":oi_act,"oi_dir":oi_dir,"cycs":cycs,"res":res,"s_sc":min(s_sc,99),"s_msg":" + ".join(s_m) or "動能中性","l_sc":min(l_sc,99),"l_msg":" + ".join(l_m) or "動能中性"})
     except Exception: pass
     try:
